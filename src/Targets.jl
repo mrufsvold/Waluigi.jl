@@ -1,5 +1,16 @@
 using Random
 
+"""
+A target is a result side effect of a process; the things we're trying to make the a pipeline.
+
+The interface for a target has the following functions:
+
+is_complete(::Target) Returns a bool for if the target has been created
+complete(::Target) Called to clean up the target (i.e. move from tmp_dir to final)
+open(::Target) Called to access the target. Usually, this means returning the tmp field until
+    the process is completed.
+
+"""
 abstract type AbstractTarget end
 
 struct DirectoryTarget <: AbstractTarget
@@ -13,7 +24,7 @@ function DirectoryTarget(fp)
 end
 complete(t::DirectoryTarget) = mv(t.tmp_fp, t.fp)
 is_complete(t::DirectoryTarget) = isdir(t.fp)
-
+open(t::DirectoryTarget) = is_complete(t) ? t.tmp : t.fp
 
 struct FileTarget <: AbstractTarget
     tmp_fp::String

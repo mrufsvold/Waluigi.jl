@@ -7,7 +7,7 @@ include("Pipeline.jl")
 
 export @process
 export Pipeline, run_pipeline
-export DirectoryTarget, FileTarget
+export AbstractTarget, DirectoryTarget, FileTarget
 
 """
 run_pipeline(pipeline::Pipeline, first_proc::AbstractProcess)
