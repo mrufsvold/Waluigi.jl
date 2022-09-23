@@ -23,6 +23,7 @@ get_process(pipeline::Pipeline, vert::Int) = pipeline.vertex_to_process[vert]
 get_process(pipeline::Pipeline, key::NamedTuple) = pipeline.processes[key]
 # Check the status of all processes
 get_statuses(pipeline) = [get_process(pipeline, i).status for i in 1:nv(pipeline.process_graph)]
+get_statuses(pipeline, ids) = [get_process(pipeline, i).status for i in ids]
 
 # Build a new process node and add it to the pipeline
 function add_process!(pipeline, process)
@@ -36,8 +37,7 @@ function add_process!(pipeline, process)
 end
 
 # TODO Need to find a way to pass params to requirements
-function add_requirements!(pipeline::Pipeline, proc_key)
-    proc_node = pipeline.processes[proc_key]
+function add_requirements!(pipeline::Pipeline, proc_node)
     proc_index = proc_node.graph_index
     proc = proc_node.process
     reqs = get_requirements(proc)
@@ -65,26 +65,34 @@ function run_process!(proc_node)
     return proc_node.status
 end
 
-# TODO Pass each process run to a worker and await their return
-# TODO Don't return on statuses that aren't Complete or Failed. Just await dependencies,
-# run time, and then decide if the process is done or failed before returning
-# TODO -- once this is asynchronous, we can consolidate with add_requirements!() because
-# it will add in all the reqs as it goes through the tree.
-function run_processes!(pipeline, proc_i)
-    proc_node = get_process(pipeline, proc_i)
 
-    if proc_node.status == Ready
-        run_process!(proc_node)
-    elseif proc_node.status == Blocked
-        req_results = [
-            run_processes!(pipeline, req_i) 
-            for req_i in outneighbors(pipeline.process_graph, proc_node.graph_index)
-        ]
-        if all(.==(Ref(Complete), req_results))
-            run_process!(proc_node)
-        elseif any(.==(Ref(Failed), req_results))
+function run_process!(pipeline, process_index = 1)
+    proc_node = get_process(pipeline, process_index)
+    add_requirements!(pipeline, proc_node)
+
+    if proc_node.status == Blocked
+        req_indices = outneighbors(pipeline.process_graph, proc_node.graph_index)
+        Threads.@threads for i in req_indices
+            run_process!(pipeline, i)
+        end
+        req_status = get_statuses(pipeline, req_indices)
+        if all(.==(Ref(Complete), req_status))
+            proc_node.status = Ready
+        elseif any(.==(Ref(Failed), req_status))
             proc_node.status = Failed
+            proc_node.status_reason = "Prerequisit failed."
         end
     end
-    return proc_node.status
+
+    if proc_node.status == Ready
+        try
+            proc_node.status = Running
+            run(proc_node.process)
+        catch e
+            proc_node.status == Failed
+            proc_node.status_reason = "We got an error of $e when handling the following process.\n$(get_process_name(proc_node.process))"
+            println(proc_node.status_reason)
+        end
+    end
+    return nothing
 end

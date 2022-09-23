@@ -35,7 +35,8 @@ macro process(base_struct)
     needed_fields = [
         (name = :params, default = nothing), 
         (name = :output, default = []), 
-        (name = :requires, default = [])
+        (name = :requires, default = []),
+        (name = :status_reason, default = "initial status")
         ]
     fields = [field.args[1] for field in base_struct.args[3].args if typeof(field) == Expr]
 
@@ -45,15 +46,12 @@ macro process(base_struct)
         end
     end
 
-    finalexpr = Expr(
+    return Expr(
         :macrocall,
         Expr(Symbol("."), :Base, QuoteNode(Symbol("@kwdef"))),
         base_struct.args[1],
         base_struct
     )
-
-    dump(finalexpr)
-    return finalexpr
 end
 
 get_process_name(proc::AbstractProcess) = (name=typeof(proc), params=proc.params)
