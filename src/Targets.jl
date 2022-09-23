@@ -26,3 +26,7 @@ function FileTarget(fp)
 end
 complete(t::FileTarget) = mv(t.tmp_fp, t.fp)
 is_complete(t::FileTarget) = isdir(t.fp)
+function open(t::FileTarget, args...; kwargs...)
+    # Check if output is complete, open the correct version of the file name
+    is_complete(t) ? open(t.fp, args...; kwargs...) : open(t.tmp_fp, args...; kwargs...)
+end
