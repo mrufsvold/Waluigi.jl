@@ -61,7 +61,7 @@ get_process_name(proc::AbstractProcess) = (name=typeof(proc), params=proc.params
 get_output(proc::AbstractProcess) = proc.output
 struct NoRequirements end
 function get_requirements(proc::AbstractProcess)
-    if ! hasfield(proc, :requires) || proc.requires == []
+    if proc.requires == []
         return NoRequirements()
     end
     return proc.requires isa Array ? proc.requires : [proc.requires]

@@ -1,14 +1,5 @@
 include("../src/Waluigi.jl")
 using .Waluigi
-
-# I want @process to --
-    # 1. add Base.@kwdef
-    # 2. make subtype of AbstractProcess done
-    # 3. define get_output() and get_requirements()
-            # If reqs are not listed, just return Nothing
-    # 4. Add a pipeline_params field if it doesn't have one
-
-
 @process struct GetADI
     output = DirectoryTarget("path/to/adi/dir")
 end
