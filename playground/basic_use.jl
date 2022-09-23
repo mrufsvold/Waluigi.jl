@@ -14,7 +14,7 @@ using .Waluigi
 end
 
 function run(proc::GetADI)
-    open(proc.output.tmp) do dir
+    open(proc.output) do dir
         download_adi(dir)
     end
     complete(proc.output)
