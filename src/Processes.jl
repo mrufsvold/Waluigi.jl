@@ -25,7 +25,36 @@ end
 abstract type AbstractProcess end
 @enum ProcessStatus Blocked Ready Complete Running Failed
 
-macro process(expr) end
+macro process(base_struct) 
+    @assert base_struct.head == :struct "Process definition must be a struct"
+    component_name = base_struct.args[2]
+    @assert typeof(component_name) == Symbol "Component definition should not be subtyped"
+    base_struct.args[2] = Expr(Symbol("<:"), component_name, :AbstractProcess)
+
+    # Get list of field names
+    needed_fields = [
+        (name = :params, default = nothing), 
+        (name = :output, default = []), 
+        (name = :requires, default = [])
+        ]
+    fields = [field.args[1] for field in base_struct.args[3].args if typeof(field) == Expr]
+
+    for field in needed_fields
+        if ! (field.name in fields)
+            push!(base_struct.args[3].args, Expr(Symbol("="), field.name, field.default))
+        end
+    end
+
+    finalexpr = Expr(
+        :macrocall,
+        Expr(Symbol("."), :Base, QuoteNode(Symbol("@kwdef"))),
+        base_struct.args[1],
+        base_struct
+    )
+
+    dump(finalexpr)
+    return finalexpr
+end
 
 get_process_name(proc::AbstractProcess) = (name=typeof(proc), params=proc.params)
 # Define functions for checking if a process, req, or output is complete

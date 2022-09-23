@@ -7,13 +7,20 @@ struct Pipeline
     process_graph::SimpleDiGraph
     processes::Dict{NamedTuple, ProcessNode}
     vertex_to_process::Dict{Int, ProcessNode}
-    params
+    params::Any
 end
-Pipeline(params) = Pipeline(SimpleDiGraph{AbstractProcess}(), [], params)
+Pipeline(params) = Pipeline(
+    process_graph = SimpleDiGraph{AbstractProcess}(), 
+    processes = Dict{NamedTuple,ProcessNode}(),
+    vertex_to_process = Dict{Int,ProcessNode}(), 
+    params = params
+    )
 
+# Get access to process detail using either its key or its graph index
 get_process(pipeline::Pipeline, vert::Int) = pipeline.vertex_to_process[vert]
 get_process(pipeline::Pipeline, key::NamedTuple) = pipeline.processes[key]
 
+# Build a new process node and add it to the pipeline
 function add_process!(pipeline, process)
     add_vertex!(pipeline.process_graph)
     status = is_complete(process) ? Complete : Blocked
@@ -61,7 +68,8 @@ function run_processes!(pipeline, proc_i)
         run_process!(proc_node)
     elseif proc_node.status == Blocked
         req_results = [
-            run_processes!(pipeline, req_i) for req_i in outneighbors(pipeline.process_graph, proc_node.graph_index)
+            run_processes!(pipeline, req_i) 
+            for req_i in outneighbors(pipeline.process_graph, proc_node.graph_index)
         ]
         if all(.==(Ref(Complete), req_results))
             run_process!(proc_node)

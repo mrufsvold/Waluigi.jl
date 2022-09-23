@@ -3,11 +3,11 @@ using .Waluigi
 
 # I want @process to --
     # 1. add Base.@kwdef
-    # 2. make subtype of AbstractProcess
+    # 2. make subtype of AbstractProcess done
     # 3. define get_output() and get_requirements()
             # If reqs are not listed, just return Nothing
     # 4. Add a pipeline_params field if it doesn't have one
-    # 5. Graph index
+
 
 @process struct GetADI
     output = DirectoryTarget("path/to/adi/dir")
