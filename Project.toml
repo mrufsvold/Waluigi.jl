@@ -1,0 +1,4 @@
+name = "Waluigi"
+uuid = "aa5a021a-6c35-4f46-b189-2143d43923dc"
+authors = ["Micah Rufsvold <mrufsvold@mathematica-mpr.com>"]
+version = "0.1.0"
