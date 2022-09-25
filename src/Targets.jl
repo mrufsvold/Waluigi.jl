@@ -24,7 +24,7 @@ function DirectoryTarget(fp)
 end
 complete(t::DirectoryTarget) = mv(t.tmp_fp, t.fp)
 is_complete(t::DirectoryTarget) = isdir(t.fp)
-open(t::DirectoryTarget) = is_complete(t) ? t.tmp : t.fp
+get_path(t::DirectoryTarget) = is_complete(t) ? t.tmp : t.fp
 
 struct FileTarget <: AbstractTarget
     tmp_fp::String

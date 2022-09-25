@@ -34,8 +34,6 @@ macro process(base_struct)
     # Get list of field names
     needed_fields = [
         (name = :params, default = nothing), 
-        (name = :output, default = []), 
-        (name = :requires, default = []),
         (name = :status_reason, default = "initial status")
         ]
     fields = [field.args[1] for field in base_struct.args[3].args if typeof(field) == Expr]
@@ -45,25 +43,23 @@ macro process(base_struct)
             push!(base_struct.args[3].args, Expr(Symbol("="), field.name, field.default))
         end
     end
-
-    return Expr(
-        :macrocall,
-        Expr(Symbol("."), :Base, QuoteNode(Symbol("@kwdef"))),
-        base_struct.args[1],
-        base_struct
-    )
+    return esc(:(Base.@kwdef $(base_struct)))
 end
 
 get_process_name(proc::AbstractProcess) = (name=typeof(proc), params=proc.params)
 # Define functions for checking if a process, req, or output is complete
-get_output(proc::AbstractProcess) = proc.output
 struct NoRequirements end
-function get_requirements(proc::AbstractProcess)
-    if proc.requires == []
-        return NoRequirements()
+get_requirements(::AbstractProcess) = NoRequirements()
+function Base.getproperty(p::AbstractProcess, s::Symbol)
+    if s == :requires
+        return get_requirements(p)
+    elseif s == :output
+        return get_output(p)
+    else
+        return getfield(p, s)
     end
-    return proc.requires isa Array ? proc.requires : [proc.requires]
 end
+
 is_complete(::NoRequirements) = true
 is_complete(target_arr::Array{AbstractTarget}) = all(is_complete.(target_arr))
 is_complete(proc::AbstractProcess) = is_complete(get_output(proc))

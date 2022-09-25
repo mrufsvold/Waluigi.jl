@@ -11,7 +11,7 @@ way to hold parameters is in a dictionary, but for performance, it is recommende
 you create a struct or NamedTuple to maintain type stability.
 """
 struct Pipeline
-    process_graph::SimpleDiGraph{AbstractProcess}
+    process_graph::SimpleDiGraph
     processes::Dict{NamedTuple, ProcessNode}
     vertex_to_process::Dict{Int, ProcessNode}
     params::Any
@@ -80,7 +80,7 @@ function run_process!(pipeline, process_index = 1)
             proc_node.status = Ready
         elseif any(.==(Ref(Failed), req_status))
             proc_node.status = Failed
-            proc_node.status_reason = "Prerequisit failed."
+            proc_node.status_reason = "Prerequisite failed."
         end
     end
 
