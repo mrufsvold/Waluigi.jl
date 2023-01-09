@@ -13,36 +13,11 @@ open(::Target) Called to access the target. Usually, this means returning the tm
 """
 abstract type AbstractTarget end
 
-struct DirectoryTarget <: AbstractTarget
-    tmp_fp::String
-    fp::String
+struct Target
+    location
+    config
+    write_function
+    read_function
 end
-function DirectoryTarget(process, fp)
-    fp_parts = splitpath(fp)
-    fp_parts[end] = "waluigi_tmp_$(process.id)_$(fp_parts[end])"
-    DirectoryTarget(joinpath(fp_parts), fp)
-end
-complete(t::DirectoryTarget) = mv(t.tmp_fp, t.fp)
-is_complete(t::DirectoryTarget) = isdir(t.fp)
-function get_path(t::DirectoryTarget)
-    current_dir = is_complete(t) ? t.fp : t.tmp_fp
-    make_dir_and_parents(current_dir)
-    return current_dir
-end
-
-struct FileTarget <: AbstractTarget
-    tmp_fp::String
-    fp::String
-end
-function FileTarget(process, fp)
-    fp_parts = splitpath(fp)
-    fp_parts[end] = "waluigi_tmp_$(process.id)_$(fp_parts[end])"
-    FileTarget(joinpath(fp_parts), fp)
-end
-complete(t::FileTarget) = mv(t.tmp_fp, t.fp)
-is_complete(t::FileTarget) = isfile(t.fp)
-function get_path(t::FileTarget)
-    current_fp = is_complete(t) ? t.fp : t.tmp_fp
-    make_dir_and_parents(dirname(current_fp))
-    return current_fp
-end
+write(t::Target, data) = t.write_function(data)
+read(t::Target) = t.read_function()

@@ -200,21 +200,83 @@ StackSnfTables = @Task begin
             (collect(dep) for dep in dependencies)...
         )
     end
-end |> dump
-
-
-
-:(
-() -> begin
-    t = begin
-        GetAllSnfTables(start_month, )
-    end
-    if !(t isa AbstractArray)
-        return [t]
-    end
-    return t
 end
-) |> dump
+
+
+```
+
+
+## Target Vision
+A target needs three things to work.
+* A place to store the result
+* A way to write to that place
+* a way to read from that place
+
+The simplest way to do this is a local bin file that serializes the result to and from
+Julia
+```julia
+struct LocalSerialFile 
+    fp
+end
+write(t::LocalSerialFile, data) = write(t.fp, data)
+read(t::LocalSerialFile) = read(t.fp)
+
+
+target = LocalSerialFile("path/to/serialized.bin")
+
+x = 5 # result of task
+
+write(target, x)
+y = read(target)
+```
+
+It would be great to have targets for Tables
+```julia
+using CSV
+using DataFrames
+struct CsvTableTarget{T}
+    fp
+    sink::T
+end
+
+write(t::CsvTableTarget{T}, df::T) where T = CSV.write(t.fp, df)
+read(t::CsvTableTarget) = CSV.read(t.fp, t.sink)
+
+target = CsvTableTarget("path/to/file.csv", DataFrame)
+df = DataFrame(a=[1,2], b=[3,4])
+write(target, df)
+df2 = read(target)
+```
+
+Custom Target
+```julia
+struct Target
+    location
+    config
+    write_function
+    read_function
+end
+write(t::Target, data) = t.write_function(data)
+read(t::Target) = t.read_function()
+
+function LocalSerialFile(fp)
+    Target(
+        fp,
+        nothing,
+        (data) -> write(fp, data),
+        () -> read(fp)
+    )
+end
+
+function CsvTableTarget(fp, sink)
+    Target(
+        fp,
+        nothing,
+        (data) -> CSV.write(fp, data),
+        () -> CSV.read(fp, sink)
+    )
+end
+
 
 
 ```

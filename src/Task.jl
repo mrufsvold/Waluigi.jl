@@ -12,18 +12,9 @@ Base.@kwdef mutable struct Result
     parameters
     dependencies
     target
-    promise
-    collected = false
-    data = missing
+    data
 end
 
-function Base.collect(r::Result)
-    if !r.collected
-        r.data = collect(r.promise)
-        r.collected = true
-    end
-    return r.data
-end
 dependencies(r::Result) = r.dependencies
 
 
@@ -46,7 +37,7 @@ MyNewTask = @Task begin
     
     # Target is an output location to cache the result. If the target exists, the task will
     # be skipped and the cached result will be returned (Optional).
-    target = FileTarget(joinpath(snf_path, "raw_tables", "$month.csv"))
+    target = FileTarget(joinpath(snf_path, "raw_tables", "\$month.csv"))
     
     # The process function will be executed when the task is called.
     # All parameters, `dependencies`, and `target` are defined in this scope.
@@ -63,24 +54,24 @@ end
 """
 macro Task(task_description)
     task_features = extract_task_features(task_description)
-        
+
     (param_list, param_type_list) = separate_type_annotations(task_features[:parameters])
     dependency_func = assure_result_is_array(task_features[:dependencies])
     task_definition = Expr(
-        :call, 
+        :call,
         :Task,
         :($param_list),
         :($param_type_list),
-        make_anon_function_expr(dependency_func; kwargs = param_list),
-        make_anon_function_expr(task_features[:target]; kwargs = param_list),
-        make_anon_function_expr(task_features[:process]; args = (:dependencies, :target), kwargs = param_list)
+        make_anon_function_expr(dependency_func; kwargs=param_list),
+        make_anon_function_expr(task_features[:target]; kwargs=param_list),
+        make_anon_function_expr(task_features[:process]; args=(:dependencies, :target), kwargs=param_list)
     )
     return esc(task_definition)
 end
 
 
 function extract_task_features(task_description)
-    task_features = Dict{Symbol, Union{Symbol, Expr}}()
+    task_features = Dict{Symbol,Union{Symbol,Expr}}()
     for element in task_description.args
         if element isa LineNumberNode
             continue
@@ -103,7 +94,7 @@ function extract_task_features(task_description)
 end
 
 
-function make_anon_function_expr(f; args = (), kwargs = nothing)
+function make_anon_function_expr(f; args=(), kwargs=nothing)
     sym_args = Any[Symbol(p) for p in args]
     if !(kwargs isa Nothing)
         pushfirst!(sym_args, Expr(:parameters, (Symbol(k) for k in kwargs)...))
@@ -112,7 +103,7 @@ function make_anon_function_expr(f; args = (), kwargs = nothing)
     return Expr(
         Symbol("->"),
         Expr(
-            :tuple, 
+            :tuple,
             sym_args...
         ),
         f
@@ -124,9 +115,10 @@ function assure_result_is_array(func_block)
     return Expr(
         :block,
         Expr(Symbol("="), :t, Expr(:block, func_block)),
-        :(if !(t isa AbstractArray)
-            return [t]
-        end
+        :(
+            if !(t isa AbstractArray)
+                return [t]
+            end
         ),
         Expr(:return, :t)
     )
@@ -136,26 +128,26 @@ end
 function separate_type_annotations(args_expr)
     arg_part_generator = (
         arg isa Symbol ?
-            (arg, Any) :
-            (arg.args[1], eval(arg.args[2]))
+        (arg, Any) :
+        (arg.args[1], eval(arg.args[2]))
         for arg in args_expr.args)
     return (Tuple(arg[1] for arg in arg_part_generator), Tuple(arg[2] for arg in arg_part_generator))
 end
 
 
-function (task::Task)(;ignore_target = false, parameters...)
+function (task::Task)(; ignore_target=false, parameters...)
     needed_parameters = Dict(k => v for (k, v) in parameters if k in task.parameters)
 
     dep_tasks = task.dependencies(needed_parameters...)
-    dependencies = if dep_tasks isa Nothing 
-        nothing 
+    dependencies = if dep_tasks isa Nothing
+        nothing
     else
         # TODO deps will be hard to find upstream if they're in a list like this
         # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
         # Create a name 
-        dependencies = Vector{Dagger.EagerThunk}(undef, length(dep_tasks))
+        dependencies = Vector(undef, length(dep_tasks))
         for (i, dep_task) in enumerate(dep_tasks)
-            dependencies[i] = dep_task(;ignore_target=ignore_target, needed_parameters...) 
+            dependencies[i] = dep_task(; ignore_target=ignore_target, needed_parameters...)
         end
         dependencies
     end
@@ -166,7 +158,7 @@ function (task::Task)(;ignore_target = false, parameters...)
         return Result(dependencies, target, data)
     end
 
-    promise = Dagger.@spawn task.process(dependencies, target; needed_parameters...)
+    data = task.process(dependencies, target; needed_parameters...)
 
-    return Result(needed_parameters, dependencies, target, promise)
+    return Result(needed_parameters, dependencies, target, data)
 end
