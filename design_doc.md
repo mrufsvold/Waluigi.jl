@@ -1,18 +1,18 @@
 # Vision
 Waliugi should provide a seemless interface for constructing data pipelines. Users just need 
-to define an task that has three parts:
-* a list of tasks on which the current task depends 
+to define an job that has three parts:
+* a list of jobs on which the current job depends 
 * a target which holds the resulting data. Can be a local file, a database table, etc
 * process function that providest the steps for creating the data
 
 The workflow should be
 
-Defining a list of tasks, calling `run()` on the final task, and then Waliuigi will
-spawn all the dependent tasks required. If a task is already done, then it will read the target
+Defining a list of jobs, calling `run()` on the final job, and then Waliuigi will
+spawn all the dependent jobs required. If a job is already done, then it will read the target
 and return that data. `run()` will return a Result object which contains references to the 
-results of the depenencies, the target, and the data created by the task.
+results of the depenencies, the target, and the data created by the job.
 
-We will lean on Dagger.jl for the backend infrastructure which schedules tasks, mantains the
+We will lean on Dagger.jl for the backend infrastructure which schedules jobs, mantains the
 graph of dependencies, and provides visualizations of the processes. 
 
 Some brainstroming code:
@@ -20,9 +20,9 @@ Some brainstroming code:
 ## Fundamental Types
 
 ```julia
-# This is the internal Task structure
-# TODO save the file and line number for the task definition so we can give clear debugging information
-struct Task
+# This is the internal Job structure
+# TODO save the file and line number for the job definition so we can give clear debugging information
+struct Job
     parameters::Tuple{Symbol}
     parameter_types::Tuple{Type}
     dependencies::Function
@@ -67,41 +67,41 @@ function separate_type_annotations(args_expr)
     return (Tuple(arg[1] for arg in arg_part_generator), Tuple(arg[2] for arg in arg_part_generator))
 end
 
-macro Task(task_description)
-    task_features = Dict{Symbol, Union{Symbol, Expr}}()
-    for element in task_description.args
+macro Job(job_description)
+    job_features = Dict{Symbol, Union{Symbol, Expr}}()
+    for element in job_description.args
         if element isa LineNumberNode
             continue
         end
-        @assert element.head == Symbol("=") "No `=` operator found in task description for $element"
-        task_features[element.args[1]] = element.args[2]
+        @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
+        job_features[element.args[1]] = element.args[2]
     end
 
     for feature in (:dependencies, :target, :process)
-        if !(feature in keys(task_features))
-            task_features[feature] = Expr(:block, :nothing)
+        if !(feature in keys(job_features))
+            job_features[feature] = Expr(:block, :nothing)
         end
     end
 
-    if !(:parameters in keys(task_features))
-        task_features[:parameters] = :(())
+    if !(:parameters in keys(job_features))
+        job_features[:parameters] = :(())
     end
         
-    (param_list, param_type_list) = separate_type_annotations(task_features[:parameters])
-    dependency_func = assure_result_is_array(task_features[:dependencies])
-    task_definition = Expr(
+    (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
+    dependency_func = assure_result_is_array(job_features[:dependencies])
+    job_definition = Expr(
         :call, 
-        :Task,
+        :Job,
         :($param_list),
         :($param_type_list),
         make_anon_function_expr(dependency_func; kwargs = param_list),
-        make_anon_function_expr(task_features[:target]; kwargs = param_list),
-        make_anon_function_expr(task_features[:process]; args = (:dependencies, :target), kwargs = param_list)
+        make_anon_function_expr(job_features[:target]; kwargs = param_list),
+        make_anon_function_expr(job_features[:process]; args = (:dependencies, :target), kwargs = param_list)
     )
-    return esc(task_definition)
+    return esc(job_definition)
 end
 
-# Struct for passing results of tasks through the graph
+# Struct for passing results of jobs through the graph
 Base.@kwdef mutable struct Result
     parameters
     dependencies
@@ -122,33 +122,33 @@ dependencies(r::Result) = r.dependencies
 
 ```
 
-## Running a task
+## Running a job
 ```julia
-# Each instance of Task is collable. It will use unique paramters to make new data 
-function (task::Task)(ignore_target = false, parameters...)
-    needed_parameters = Dict(k => v for (k, v) in parameters if k in task.parameters)
+# Each instance of Job is collable. It will use unique paramters to make new data 
+function (job::Job)(ignore_target = false, parameters...)
+    needed_parameters = Dict(k => v for (k, v) in parameters if k in job.parameters)
 
-    dep_tasks = task.dependencies(needed_parameters...)
-    dependencies = if dep_tasks isa Nothing 
+    dep_jobs = job.dependencies(needed_parameters...)
+    dependencies = if dep_jobs isa Nothing 
         nothing 
     else
         # TODO deps will be hard to find upstream if they're in a list like this
         # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
         # Create a name 
-        dependencies = Vector{Dagger.EagerThunk}(undef, length(dep_tasks))
-        for (i, dep_task) in enumerate(dep_tasks)
-            dependencies[i] = dep_task(;ignore_target=ignore_target, needed_parameters...) 
+        dependencies = Vector{Dagger.EagerThunk}(undef, length(dep_jobs))
+        for (i, dep_job) in enumerate(dep_jobs)
+            dependencies[i] = dep_job(;ignore_target=ignore_target, needed_parameters...) 
         end
         dependencies
     end
 
-    target = task.target(needed_parameters...)
+    target = job.target(needed_parameters...)
     if iscomplete(target)
         data = read(target)
         return Result(dependencies, target, data)
     end
 
-    promise = Dagger.@spawn task.process(dependencies, target; needed_parameters...)
+    promise = Dagger.@spawn job.process(dependencies, target; needed_parameters...)
 
     return Result(needed_parameters, dependencies, target, promise)
 end
@@ -156,8 +156,8 @@ end
 
 ## Example Usage
 ```julia
-@macroexpand1 GetRawSnfTable = @Task begin
-    # Paramters are the input values for the task and it's dependencies
+@macroexpand1 GetRawSnfTable = @Job begin
+    # Paramters are the input values for the job and it's dependencies
     parameters = (snf_path::String, month::Date)
     dependencies = nothing
     target = FileTarget(joinpath(snf_path, "raw_tables", "$month.csv"))
@@ -169,7 +169,7 @@ end
 end
 
 # Macro transforms this into:
-GetRawSnfTable = Task(
+GetRawSnfTable = Job(
     (:snf_path, :month),
     (String, Date),
     (;snf_path, month) -> nothing,
@@ -181,8 +181,8 @@ GetRawSnfTable = Task(
 )
 
 
-# Another task example that depends on the last one
-GetAllSnfTables = @Task begin
+# Another job example that depends on the last one
+GetAllSnfTables = @Job begin
     parameters = (start_month::Date, end_month::Date, snf_path::String)
     # Notice that we can programatically specify multiple dependencies
     dependencies = [GetRawSnfTable(snf_path, month) for month in start_month:end_month]
@@ -190,7 +190,7 @@ GetAllSnfTables = @Task begin
     process = nothing
 end
 
-StackSnfTables = @Task begin 
+StackSnfTables = @Job begin 
     parameters = (start_month::Date,)
     dependencies = GetAllSnfTables(start_month, end_month,)
     target = FileTarget(joinpath(snf_path, "stacked_table", "$(start_month)_through_$(end_month).csv"))
@@ -224,7 +224,7 @@ read(t::LocalSerialFile) = read(t.fp)
 
 target = LocalSerialFile("path/to/serialized.bin")
 
-x = 5 # result of task
+x = 5 # result of job
 
 write(target, x)
 y = read(target)

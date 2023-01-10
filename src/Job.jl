@@ -1,6 +1,6 @@
-# This is the internal Task structure
-# TODO save the file and line number for the task definition so we can give clear debugging information
-struct Task
+# This is the internal Job structure
+# TODO save the file and line number for the job definition so we can give clear debugging information
+struct Job
     parameters::Tuple{Symbol}
     parameter_types::Tuple{Type}
     dependencies::Function
@@ -19,27 +19,27 @@ dependencies(r::Result) = r.dependencies
 
 
 """
-    @Task(task_description)
+    @Job(job_description)
 
-Constructs a new task based on a description. 
+Constructs a new job based on a description. 
 
 ## Description Format
 ```juila
-MyNewTask = @Task begin
-    # Paramters are the input values for the task and it's dependencies
-    # Type annotations will be enforced when the task is called, but cannot be
+MyNewJob = @Job begin
+    # Paramters are the input values for the job and it's dependencies
+    # Type annotations will be enforced when the job is called, but cannot be
     # used for dispatch
     parameters = (param1::String, param2::Int)
     
-    # Dependencies list tasks that should be inputs to this task (Optional)
+    # Dependencies list jobs that should be inputs to this job (Optional)
     # They can be created programmatically using parameters
-    dependencies = [[SomeTask(i) for i in 1:param2]; AnotherTask("input")]
+    dependencies = [[SomeJob(i) for i in 1:param2]; AnotherJob("input")]
     
-    # Target is an output location to cache the result. If the target exists, the task will
+    # Target is an output location to cache the result. If the target exists, the job will
     # be skipped and the cached result will be returned (Optional).
     target = FileTarget(joinpath(snf_path, "raw_tables", "\$month.csv"))
     
-    # The process function will be executed when the task is called.
+    # The process function will be executed when the job is called.
     # All parameters, `dependencies`, and `target` are defined in this scope.
     process = begin
         # Dependencies are not calculated until needed, call `collect()`
@@ -52,45 +52,45 @@ MyNewTask = @Task begin
 end
 ```
 """
-macro Task(task_description)
-    task_features = extract_task_features(task_description)
+macro Job(job_description)
+    job_features = extract_job_features(job_description)
 
-    (param_list, param_type_list) = separate_type_annotations(task_features[:parameters])
-    dependency_func = assure_result_is_array(task_features[:dependencies])
-    task_definition = Expr(
+    (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
+    dependency_func = assure_result_is_array(job_features[:dependencies])
+    job_definition = Expr(
         :call,
-        :Task,
+        :Job,
         :($param_list),
         :($param_type_list),
         make_anon_function_expr(dependency_func; kwargs=param_list),
-        make_anon_function_expr(task_features[:target]; kwargs=param_list),
-        make_anon_function_expr(task_features[:process]; args=(:dependencies, :target), kwargs=param_list)
+        make_anon_function_expr(job_features[:target]; kwargs=param_list),
+        make_anon_function_expr(job_features[:process]; args=(:dependencies, :target), kwargs=param_list)
     )
-    return esc(task_definition)
+    return esc(job_definition)
 end
 
 
-function extract_task_features(task_description)
-    task_features = Dict{Symbol,Union{Symbol,Expr}}()
-    for element in task_description.args
+function extract_job_features(job_description)
+    job_features = Dict{Symbol,Union{Symbol,Expr}}()
+    for element in job_description.args
         if element isa LineNumberNode
             continue
         end
-        @assert element.head == Symbol("=") "No `=` operator found in task description for $element"
-        task_features[element.args[1]] = element.args[2]
+        @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
+        job_features[element.args[1]] = element.args[2]
     end
 
     for feature in (:dependencies, :target, :process)
-        if !(feature in keys(task_features))
-            task_features[feature] = Expr(:block, :nothing)
+        if !(feature in keys(job_features))
+            job_features[feature] = Expr(:block, :nothing)
         end
     end
 
-    if !(:parameters in keys(task_features))
-        task_features[:parameters] = :(())
+    if !(:parameters in keys(job_features))
+        job_features[:parameters] = :(())
     end
 
-    return task_features
+    return job_features
 end
 
 
@@ -135,30 +135,30 @@ function separate_type_annotations(args_expr)
 end
 
 
-function (task::Task)(; ignore_target=false, parameters...)
-    needed_parameters = Dict(k => v for (k, v) in parameters if k in task.parameters)
+function (job::Job)(; ignore_target=false, parameters...)
+    needed_parameters = Dict(k => v for (k, v) in parameters if k in job.parameters)
 
-    dep_tasks = task.dependencies(needed_parameters...)
-    dependencies = if dep_tasks isa Nothing
+    dep_jobs = job.dependencies(needed_parameters...)
+    dependencies = if dep_jobs isa Nothing
         nothing
     else
         # TODO deps will be hard to find upstream if they're in a list like this
         # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
         # Create a name 
-        dependencies = Vector(undef, length(dep_tasks))
-        for (i, dep_task) in enumerate(dep_tasks)
-            dependencies[i] = dep_task(; ignore_target=ignore_target, needed_parameters...)
+        dependencies = Vector(undef, length(dep_jobs))
+        for (i, dep_job) in enumerate(dep_jobs)
+            dependencies[i] = dep_job(; ignore_target=ignore_target, needed_parameters...)
         end
         dependencies
     end
 
-    target = task.target(needed_parameters...)
+    target = job.target(needed_parameters...)
     if iscomplete(target)
         data = read(target)
         return Result(dependencies, target, data)
     end
 
-    data = task.process(dependencies, target; needed_parameters...)
+    data = job.process(dependencies, target; needed_parameters...)
 
     return Result(needed_parameters, dependencies, target, data)
 end
