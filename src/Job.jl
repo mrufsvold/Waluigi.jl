@@ -1,12 +1,12 @@
 # This is the internal Job structure
 # TODO save the file and line number for the job definition so we can give clear debugging information
-struct Job
-    parameters::Tuple
-    parameter_types::Tuple
-    dependencies::Function
-    target::Function
-    process::Function
-end
+abstract type AbstractJob end
+
+parameters() = nothing
+parameter_types() = missing
+dependencies() = nothing
+target() = nothing
+process() = nothing
 
 Base.@kwdef mutable struct Result
     parameters
@@ -54,20 +54,19 @@ end
 """
 macro Job(job_description)
     job_features = extract_job_features(job_description)
-
+    
+    job_name = job_features[:name]
     (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
     dependency_func = force_generator_or_array_result(job_features[:dependencies])
-    job_definition = Expr(
-        :call,
-        :Job,
-        :($param_list),
-        :($param_type_list),
-        # TODO: If these are named functions, do we benefit more from precompilation?
-        make_anon_function_expr(dependency_func; kwargs=param_list),
-        make_anon_function_expr(job_features[:target]; kwargs=param_list),
-        make_anon_function_expr(job_features[:process]; args=(:dependencies, :target), kwargs=param_list)
-    )
-    return esc(job_definition)
+
+    return quote
+        struct $job_name <: AbstractJob end
+        eval(:(parameters(_::$$(esc(job_name))) = $$param_list))
+        eval(:(parameter_types(_::$$(esc(job_name))) = $$param_type_list))
+        eval(:(dependencies(_::$$(esc(job_name)); kwargs...) = $$dependency_func))
+        eval(:(target(_::$$(esc(job_name)); kwargs...) = $$(job_features[:target])))
+        eval(:(process(_::$$(esc(job_name)), dependencies, target; kwargs...) = $$(job_features[:target])))
+    end
 end
 
 
@@ -87,7 +86,7 @@ function extract_job_features(job_description)
         end
     end
 
-    if !(:parameters in keys(job_features))
+    if !(:parameters in keys(job_features)) || job_features[:parameters] == :nothing
         job_features[:parameters] = :(())
     end
 
@@ -138,10 +137,14 @@ function separate_type_annotations(args_expr)
 end
 
 
-function (job::Job)(; ignore_target=false, parameters...)
-    needed_parameters = Dict(k => v for (k, v) in parameters if k in job.parameters)
-
-    dep_jobs = job.dependencies(; needed_parameters...)
+function (job::AbstractJob)(; ignore_target=false, params...)
+    needed_parameters = Dict(k => v for (k, v) in params if k in parameters(job))
+    for (type, (param_name, value)) in zip(parameter_types(job), pairs(needed_parameters))
+        if !(value isa type)
+            throw(MethodError(job, "$param_name must be of type $type, but $(typeof(value)) was passed."))
+        end
+    end
+    dep_jobs = dependencies(job; needed_parameters...)
     dependencies = if (length(dep_jobs) > 0) && (first(dep_jobs) isa Nothing)
         nothing
     else
@@ -155,13 +158,13 @@ function (job::Job)(; ignore_target=false, parameters...)
         dependencies
     end
 
-    target = job.target(; needed_parameters...)
+    target = target(job; needed_parameters...)
     if !(target isa Nothing) && iscomplete(target)
         data = read(target)
         return Result(dependencies, target, data)
     end
 
-    data = job.process(dependencies, target; needed_parameters...)
+    data = process(job, dependencies, target; needed_parameters...)
 
     return Result(needed_parameters, dependencies, target, data)
 end

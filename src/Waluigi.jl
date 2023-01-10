@@ -1,6 +1,6 @@
 module Waluigi
 
-export Job, @Job
+export @Job, AbstractJob, parameters, parameter_types, dependencies, target, process
 include("FileSystemUtils.jl")
 include("Job.jl")
 include("Target.jl")
