@@ -1,8 +1,8 @@
 # This is the internal Job structure
 # TODO save the file and line number for the job definition so we can give clear debugging information
 struct Job
-    parameters::Tuple{Symbol}
-    parameter_types::Tuple{Type}
+    parameters::Tuple
+    parameter_types::Tuple
     dependencies::Function
     target::Function
     process::Function
@@ -56,12 +56,13 @@ macro Job(job_description)
     job_features = extract_job_features(job_description)
 
     (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
-    dependency_func = assure_result_is_array(job_features[:dependencies])
+    dependency_func = force_generator_or_array_result(job_features[:dependencies])
     job_definition = Expr(
         :call,
         :Job,
         :($param_list),
         :($param_type_list),
+        # TODO: If these are named functions, do we benefit more from precompilation?
         make_anon_function_expr(dependency_func; kwargs=param_list),
         make_anon_function_expr(job_features[:target]; kwargs=param_list),
         make_anon_function_expr(job_features[:process]; args=(:dependencies, :target), kwargs=param_list)
@@ -99,7 +100,6 @@ function make_anon_function_expr(f; args=(), kwargs=nothing)
     if !(kwargs isa Nothing)
         pushfirst!(sym_args, Expr(:parameters, (Symbol(k) for k in kwargs)...))
     end
-
     return Expr(
         Symbol("->"),
         Expr(
@@ -111,12 +111,12 @@ function make_anon_function_expr(f; args=(), kwargs=nothing)
 end
 
 
-function assure_result_is_array(func_block)
+function force_generator_or_array_result(func_block)
     return Expr(
         :block,
         Expr(Symbol("="), :t, Expr(:block, func_block)),
         :(
-            if !(t isa AbstractArray)
+            if !(t isa Union{Base.Generator,AbstractArray})
                 return [t]
             end
         ),
@@ -126,6 +126,9 @@ end
 
 
 function separate_type_annotations(args_expr)
+    if args_expr isa Symbol
+        return ((args_expr,), (Any,))
+    end
     arg_part_generator = (
         arg isa Symbol ?
         (arg, Any) :
@@ -138,8 +141,8 @@ end
 function (job::Job)(; ignore_target=false, parameters...)
     needed_parameters = Dict(k => v for (k, v) in parameters if k in job.parameters)
 
-    dep_jobs = job.dependencies(needed_parameters...)
-    dependencies = if dep_jobs isa Nothing
+    dep_jobs = job.dependencies(; needed_parameters...)
+    dependencies = if (length(dep_jobs) > 0) && (first(dep_jobs) isa Nothing)
         nothing
     else
         # TODO deps will be hard to find upstream if they're in a list like this
@@ -152,8 +155,8 @@ function (job::Job)(; ignore_target=false, parameters...)
         dependencies
     end
 
-    target = job.target(needed_parameters...)
-    if iscomplete(target)
+    target = job.target(; needed_parameters...)
+    if !(target isa Nothing) && iscomplete(target)
         data = read(target)
         return Result(dependencies, target, data)
     end
