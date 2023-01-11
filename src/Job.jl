@@ -2,20 +2,17 @@
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
 
-parameters() = nothing
-parameter_types() = missing
-dependencies() = nothing
-target() = nothing
-process() = nothing
+get_dependencies() = nothing
+get_target() = nothing
+run_process() = nothing
 
 Base.@kwdef mutable struct Result
-    parameters
     dependencies
     target
     data
 end
 
-dependencies(r::Result) = r.dependencies
+get_dependencies(r::Result) = r.dependencies
 
 
 """
@@ -56,16 +53,25 @@ macro Job(job_description)
     job_features = extract_job_features(job_description)
     
     job_name = job_features[:name]
-    (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
+
+    raw_parameters = job_features[:parameters]
+    parameter_list = raw_parameters isa Symbol ? (raw_parameters,) : raw_parameters.args
+    parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
+
     dependency_func = force_generator_or_array_result(job_features[:dependencies])
 
+    dependency_ex = unpack_input_function(:get_dependencies, job_name, parameter_names, dependency_func)
+    target_ex = unpack_input_function(:get_target, job_name, parameter_names, job_features[:target])
+    process_ex = unpack_input_function(:run_process, job_name, parameter_names, job_features[:process], (:dependencies, :target))
+
+    struct_def = :(struct $job_name <: AbstractJob end)
+    push!(struct_def.args[3].args, parameter_list...)
+
     return quote
-        struct $job_name <: AbstractJob end
-        eval(:(parameters(_::$$(esc(job_name))) = $$param_list))
-        eval(:(parameter_types(_::$$(esc(job_name))) = $$param_type_list))
-        eval(:(dependencies(_::$$(esc(job_name)); kwargs...) = $$dependency_func))
-        eval(:(target(_::$$(esc(job_name)); kwargs...) = $$(job_features[:target])))
-        eval(:(process(_::$$(esc(job_name)), dependencies, target; kwargs...) = $$(job_features[:target])))
+        $struct_def
+        eval($(esc(dependency_ex)))
+        eval($(esc(target_ex)))
+        eval($(esc(process_ex)))
     end
 end
 
@@ -109,13 +115,26 @@ function make_anon_function_expr(f; args=(), kwargs=nothing)
     )
 end
 
+function unpack_input_function(function_name, job_name, parameter_names, function_body, additional_inputs=())
+    quote
+        function Waluigi.$function_name(job::$job_name, $(additional_inputs...))
+            let $((:($name = job.$name) for name in parameter_names)...)
+                $function_body
+            end
+        end
+    end
+end
+
+
 
 function force_generator_or_array_result(func_block)
     return Expr(
         :block,
         Expr(Symbol("="), :t, Expr(:block, func_block)),
         :(
-            if !(t isa Union{Base.Generator,AbstractArray})
+            if t isa Nothing
+                return ()
+            elseif !(t isa Union{Base.Generator,AbstractArray})
                 return [t]
             end
         ),
@@ -124,47 +143,25 @@ function force_generator_or_array_result(func_block)
 end
 
 
-function separate_type_annotations(args_expr)
-    if args_expr isa Symbol
-        return ((args_expr,), (Any,))
+function execute(job::AbstractJob, ignore_target=false)
+    dep_jobs = get_dependencies(job)
+    
+    # TODO deps will be hard to find upstream if they're in a list like this
+    # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
+    # Create a name 
+    dependencies = Vector(undef, length(dep_jobs))
+    for (i, dep_job) in enumerate(dep_jobs)
+        dependencies[i] = execute(dep_job, ignore_target)
     end
-    arg_part_generator = (
-        arg isa Symbol ?
-        (arg, Any) :
-        (arg.args[1], eval(arg.args[2]))
-        for arg in args_expr.args)
-    return (Tuple(arg[1] for arg in arg_part_generator), Tuple(arg[2] for arg in arg_part_generator))
-end
+    dependencies
 
-
-function (job::AbstractJob)(; ignore_target=false, params...)
-    needed_parameters = Dict(k => v for (k, v) in params if k in parameters(job))
-    for (type, (param_name, value)) in zip(parameter_types(job), pairs(needed_parameters))
-        if !(value isa type)
-            throw(MethodError(job, "$param_name must be of type $type, but $(typeof(value)) was passed."))
-        end
-    end
-    dep_jobs = dependencies(job; needed_parameters...)
-    dependencies = if (length(dep_jobs) > 0) && (first(dep_jobs) isa Nothing)
-        nothing
-    else
-        # TODO deps will be hard to find upstream if they're in a list like this
-        # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
-        # Create a name 
-        dependencies = Vector(undef, length(dep_jobs))
-        for (i, dep_job) in enumerate(dep_jobs)
-            dependencies[i] = dep_job(; ignore_target=ignore_target, needed_parameters...)
-        end
-        dependencies
-    end
-
-    target = target(job; needed_parameters...)
+    target = get_target(job)
     if !(target isa Nothing) && iscomplete(target)
         data = read(target)
         return Result(dependencies, target, data)
     end
 
-    data = process(job, dependencies, target; needed_parameters...)
+    data = run_process(job, dependencies, target)
 
-    return Result(needed_parameters, dependencies, target, data)
+    return Result(dependencies, target, data)
 end
