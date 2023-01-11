@@ -18,16 +18,16 @@ function fields_equal(o1, o2)
 end
 
 
-Waluigi.@Job begin
-    name = NothingJob
-    parameters = nothing
-    dependencies = nothing
-    target = nothing
-    process = nothing
-end
-@testset "Jobs" begin
+@testset "All nothing jobs description" begin
+    Waluigi.@Job begin
+        name = NothingJob
+        parameters = nothing
+        dependencies = nothing
+        target = nothing
+        process = nothing
+    end
     nothing_job = NothingJob()
-    @test get_dependencies(nothing_job) == ()
+    @test get_dependencies(nothing_job) == []
     @test get_target(nothing_job) isa Nothing
     @test run_process(nothing_job, [nothing], nothing) isa Nothing
     @test fields_equal(Waluigi.execute(nothing_job), Waluigi.Result(Any[], nothing, nothing))

@@ -23,10 +23,8 @@ Constructs a new job based on a description.
 ## Description Format
 ```juila
 MyNewJob = @Job begin
-    # Paramters are the input values for the job and it's dependencies
-    # Type annotations will be enforced when the job is called, but cannot be
-    # used for dispatch
-    parameters = (param1::String, param2::Int)
+    # Paramters are the input values for the job 
+    parameters = (param1::String, param2::Int, param)
     
     # Dependencies list jobs that should be inputs to this job (Optional)
     # They can be created programmatically using parameters
@@ -39,9 +37,7 @@ MyNewJob = @Job begin
     # The process function will be executed when the job is called.
     # All parameters, `dependencies`, and `target` are defined in this scope.
     process = begin
-        # Dependencies are not calculated until needed, call `collect()`
-        # to get the data
-        dep1_data = collect(dependencies[1])
+        dep1_data = dependencies[1]
         x = do_logic(dep1_data, param1)
         write(target, x)
         return x
@@ -58,7 +54,7 @@ macro Job(job_description)
     parameter_list = raw_parameters isa Symbol ? (raw_parameters,) : raw_parameters.args
     parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
 
-    dependency_func = force_generator_or_array_result(job_features[:dependencies])
+    dependency_func = add_get_dep_return_type_protection(job_features[:dependencies])
 
     dependency_ex = unpack_input_function(:get_dependencies, job_name, parameter_names, dependency_func)
     target_ex = unpack_input_function(:get_target, job_name, parameter_names, job_features[:target])
@@ -127,19 +123,18 @@ end
 
 
 
-function force_generator_or_array_result(func_block)
-    return Expr(
-        :block,
-        Expr(Symbol("="), :t, Expr(:block, func_block)),
-        :(
-            if t isa Nothing
-                return ()
-            elseif !(t isa Union{Base.Generator,AbstractArray})
-                return [t]
-            end
-        ),
-        Expr(:return, :t)
-    )
+function add_get_dep_return_type_protection(func_block)
+    return quote
+        t = begin
+            $func_block
+        end
+        if t isa Nothing
+            return []
+        elseif !(t isa Union{Base.Generator,AbstractArray})
+            return [t]
+        end
+        return t
+    end
 end
 
 
