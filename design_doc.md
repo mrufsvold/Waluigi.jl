@@ -17,193 +17,7 @@ graph of dependencies, and provides visualizations of the processes.
 
 Some brainstroming code:
 
-## Fundamental Types
 
-```julia
-# This is the internal Job structure
-# TODO save the file and line number for the job definition so we can give clear debugging information
-struct Job
-    parameters::Tuple{Symbol}
-    parameter_types::Tuple{Type}
-    dependencies::Function
-    target::Function
-    process::Function
-end
-
-function make_anon_function_expr(f; args = (), kwargs = nothing)
-    sym_args = Any[Symbol(p) for p in args]
-    if !(kwargs isa Nothing)
-        pushfirst!(sym_args, Expr(:parameters, (Symbol(k) for k in kwargs)...))
-    end
-
-    return Expr(
-        Symbol("->"),
-        Expr(
-            :tuple, 
-            sym_args...
-        ),
-        f
-    )
-end
-
-function assure_result_is_array(func_block)
-    return Expr(
-        :block,
-        Expr(Symbol("="), :t, Expr(:block, func_block)),
-        :(if !(t isa AbstractArray)
-            return [t]
-        end
-        ),
-        Expr(:return, :t)
-    )
-end
-
-function separate_type_annotations(args_expr)
-    arg_part_generator = (
-        arg isa Symbol ?
-            (arg, Any) :
-            (arg.args[1], eval(arg.args[2]))
-        for arg in args_expr.args)
-    return (Tuple(arg[1] for arg in arg_part_generator), Tuple(arg[2] for arg in arg_part_generator))
-end
-
-macro Job(job_description)
-    job_features = Dict{Symbol, Union{Symbol, Expr}}()
-    for element in job_description.args
-        if element isa LineNumberNode
-            continue
-        end
-        @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
-        job_features[element.args[1]] = element.args[2]
-    end
-
-    for feature in (:dependencies, :target, :process)
-        if !(feature in keys(job_features))
-            job_features[feature] = Expr(:block, :nothing)
-        end
-    end
-
-    if !(:parameters in keys(job_features))
-        job_features[:parameters] = :(())
-    end
-        
-    (param_list, param_type_list) = separate_type_annotations(job_features[:parameters])
-    dependency_func = assure_result_is_array(job_features[:dependencies])
-    job_definition = Expr(
-        :call, 
-        :Job,
-        :($param_list),
-        :($param_type_list),
-        make_anon_function_expr(dependency_func; kwargs = param_list),
-        make_anon_function_expr(job_features[:target]; kwargs = param_list),
-        make_anon_function_expr(job_features[:process]; args = (:dependencies, :target), kwargs = param_list)
-    )
-    return esc(job_definition)
-end
-
-# Struct for passing results of jobs through the graph
-Base.@kwdef mutable struct Result
-    parameters
-    dependencies
-    target
-    promise
-    collected = false
-    data = missing
-end
-
-function Base.collect(r::Result)
-    if !r.collected
-        r.data = collect(r.promise)
-        r.collected = true
-    end
-    return r.data
-end
-dependencies(r::Result) = r.dependencies
-
-```
-
-## Running a job
-```julia
-# Each instance of Job is collable. It will use unique paramters to make new data 
-function (job::Job)(ignore_target = false, parameters...)
-    needed_parameters = Dict(k => v for (k, v) in parameters if k in job.parameters)
-
-    dep_jobs = job.dependencies(needed_parameters...)
-    dependencies = if dep_jobs isa Nothing 
-        nothing 
-    else
-        # TODO deps will be hard to find upstream if they're in a list like this
-        # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
-        # Create a name 
-        dependencies = Vector{Dagger.EagerThunk}(undef, length(dep_jobs))
-        for (i, dep_job) in enumerate(dep_jobs)
-            dependencies[i] = dep_job(;ignore_target=ignore_target, needed_parameters...) 
-        end
-        dependencies
-    end
-
-    target = job.target(needed_parameters...)
-    if iscomplete(target)
-        data = read(target)
-        return Result(dependencies, target, data)
-    end
-
-    promise = Dagger.@spawn job.process(dependencies, target; needed_parameters...)
-
-    return Result(needed_parameters, dependencies, target, promise)
-end
-```
-
-## Example Usage
-```julia
-@macroexpand1 GetRawSnfTable = @Job begin
-    # Paramters are the input values for the job and it's dependencies
-    parameters = (snf_path::String, month::Date)
-    dependencies = nothing
-    target = FileTarget(joinpath(snf_path, "raw_tables", "$month.csv"))
-    # The process function
-    process = begin
-        tbl = request("www.snf_stuff.com/$month")
-        write(target, table)
-    end
-end
-
-# Macro transforms this into:
-GetRawSnfTable = Job(
-    (:snf_path, :month),
-    (String, Date),
-    (;snf_path, month) -> nothing,
-    (;snf_path, month) -> FileTarget(joinpath(snf_path, "raw_tables", "$month.csv")),
-    (dependencies, target; snf_path, month) -> begin
-        tbl = request("www.snf_stuff.com/$month")
-        write(target, table)
-    end
-)
-
-
-# Another job example that depends on the last one
-GetAllSnfTables = @Job begin
-    parameters = (start_month::Date, end_month::Date, snf_path::String)
-    # Notice that we can programatically specify multiple dependencies
-    dependencies = [GetRawSnfTable(snf_path, month) for month in start_month:end_month]
-    target = nothing
-    process = nothing
-end
-
-StackSnfTables = @Job begin 
-    parameters = (start_month::Date,)
-    dependencies = GetAllSnfTables(start_month, end_month,)
-    target = FileTarget(joinpath(snf_path, "stacked_table", "$(start_month)_through_$(end_month).csv"))
-    process = begin
-        vcat(
-            # notice that we need to fetch the data of a dependency before it can be used.
-            (collect(dep) for dep in dependencies)...
-        )
-    end
-end
-
-
-```
 
 
 ## Target Vision
@@ -321,3 +135,28 @@ get_dependencies(typeof(job_instance); (n=>getproperty(job_instance, n) for n in
 and then define the user submitted functions with signatures like
 
 get_dependencies(::Type{MyJob}; user_param1, user_param2) = begin userfunction... end
+
+
+
+
+## Planning Targets
+
+A target needs to take data from the end of a process, write it to some location, and then
+provide a read function that returns the data
+
+Targets are unique on type of source and type of location. But the problem is that the target
+needs to know the source type so that it can call the correct read function later on
+
+The problem is then that you need to define the Target with a type into which it will read
+the data. But you may or may not know the type emitted by the process
+
+But maybe it just is what it is. 
+
+we could try to decouple read/write from de/serialize 
+
+For example, 
+
+run_process could emit a TypedTable or a DataFrame. We could write those objects
+to a parquet file or a database table
+OR
+run_process could emit a string or an int, and we could write either of those to BSON or .txt
