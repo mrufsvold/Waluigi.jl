@@ -13,11 +13,11 @@ open(::Target) Called to access the target. Usually, this means returning the tm
 """
 abstract type AbstractTarget end
 
-struct Target
-    location
-    config
-    write_function
-    read_function
+struct LocalPathTarget <: AbstractTarget
+    id::String
+    path::String
 end
-write(t::Target, data) = t.write_function(data)
-read(t::Target) = t.read_function()
+LocalPathTarget(p) = LocalPathTarget(randomstring(10), p)
+
+
+

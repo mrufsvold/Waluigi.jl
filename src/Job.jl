@@ -4,7 +4,7 @@ abstract type AbstractJob end
 
 get_dependencies() = nothing
 get_target() = nothing
-run_process() = nothing
+run_process(job, dependencies, target) = nothing
 
 Base.@kwdef mutable struct Result
     dependencies
