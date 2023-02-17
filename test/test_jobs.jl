@@ -46,4 +46,12 @@ Waluigi.@Job begin
     process = a
 end
 
+Waluigi.@Job begin
+    name = UsingCustomTarget
+    parameters = (tbl, parq_dir)
+    dependencies = nothing
+    target = Main.ParquetDirTarget(parq_dir; read_kwargs = (use_mmap=false,))
+    process = tbl
+end
+
 end # TestJobs Module

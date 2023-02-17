@@ -1,17 +1,20 @@
 using TestEnv
-TestEnv.activate()
+TestEnv.activate("Waluigi")
 
 using Scratch
 function __init__()
     global test_files = get_scratch!(@__MODULE__, "test_files")
 end
+__init__()
 
 using Dagger
 using Test
+using DataFrames
 
 using Waluigi
 
 # Putting all the structs for tester jobs in a module makes it easier to iterate
+include("./custom_target.jl")
 include("./test_jobs.jl")
 
 
@@ -73,4 +76,20 @@ end
     second_checkpoint_res = TestJobs.CheckPointTester(2)
     @test 1 == second_checkpoint_res |> Waluigi.execute |> get_result
     rm(checkpoint_fp)
+
+    # Checkpoint with custom target
+    test_parq_dir = joinpath(test_files, "test_parq_dir")
+    parq_file = joinpath(test_parq_dir, "1.parq")
+    mkdir(test_parq_dir)
+
+    df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
+    use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
+    res = Waluigi.execute(use_custom_1) |> get_result 
+    @test df_1 == res |> DataFrame
+    isfile(parq_file)
+    df_2 = DataFrame(e=[1,1,1])
+    use_custom_2 = TestJobs.UsingCustomTarget(df_2, test_parq_dir)
+    @test df_1 == Waluigi.execute(use_custom_1) |> get_result |> DataFrame
+    rm(test_parq_dir; force=true, recursive=true)
 end
+

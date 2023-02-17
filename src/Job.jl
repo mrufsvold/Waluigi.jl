@@ -3,9 +3,9 @@
 abstract type AbstractJob end
 
 
-Base.@kwdef mutable struct ScheduledJob
+Base.@kwdef mutable struct ScheduledJob{T<:AbstractTarget}
     dependencies::Union{Vector{ScheduledJob}, Dict{Symbol, ScheduledJob}}
-    target::AbstractTarget
+    target::T
     promise::Dagger.EagerThunk
 end
 
@@ -186,7 +186,6 @@ function execute(job::J, ignore_target=false) where {J <: AbstractJob}
     # We should actually schedule this with dagger
     thunk = Dagger.@spawn run_process(job, dependencies, target)
     store(target, fetch(thunk))
-    @show thunk
     data = Dagger.@spawn retrieve(target)
     # And return it here --
     return ScheduledJob(dependencies, target, data)
