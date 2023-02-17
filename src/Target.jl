@@ -15,7 +15,8 @@ abstract type AbstractTarget end
 
 struct NoTarget <: AbstractTarget end 
 Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget()
-
+iscomplete(::NoTarget) = false
+function store(::NoTarget, ::Any) end
 
 """BinFileTarget(path)
 A target that serializes the result of a Job and stores it in a .bin file at the designated path.

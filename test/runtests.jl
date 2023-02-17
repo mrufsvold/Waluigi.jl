@@ -1,5 +1,5 @@
-using TestEnv
-TestEnv.activate("Waluigi")
+# using TestEnv
+# TestEnv.activate("Waluigi")
 
 using Scratch
 function __init__()
@@ -40,7 +40,7 @@ end
 @testset "All nothing jobs description" begin
     nothing_job = TestJobs.NothingJob()
     @test get_dependencies(nothing_job) == []
-    @test get_target(nothing_job) isa Nothing
+    @test get_target(nothing_job) isa Waluigi.NoTarget
     @test run_process(nothing_job, [nothing], nothing) isa Nothing
     @test fields_equal(
         Waluigi.execute(nothing_job), Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), 

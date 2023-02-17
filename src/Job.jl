@@ -65,9 +65,10 @@ macro Job(job_description)
     parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
 
     dependency_func = add_get_dep_return_type_protection(job_features[:dependencies])
+    target_func = add_get_target_return_type_protection(job_features[:target])
 
     dependency_ex = unpack_input_function(:get_dependencies, job_name, parameter_names, dependency_func)
-    target_ex = unpack_input_function(:get_target, job_name, parameter_names, job_features[:target])
+    target_ex = unpack_input_function(:get_target, job_name, parameter_names, target_func)
     process_ex = unpack_input_function(:run_process, job_name, parameter_names, job_features[:process], (:dependencies, :target))
 
     struct_def = :(struct $job_name <: AbstractJob end)
@@ -152,6 +153,23 @@ which is not one of the accepted return types. It must return one of the followi
 end
 
 
+function add_get_target_return_type_protection(func_block)
+    return quote
+        t = begin
+            $func_block
+        end
+        if t isa Nothing
+            return Waluigi.NoTarget()
+        elseif t isa Waluigi.AbstractTarget
+            return t
+        end
+        return t
+        throw(ArgumentError("""The target definition definition in $(typeof(job)) returned a $(typeof(t)), \
+but target must return `nothing` or `<:AbstractTarget`"""))
+    end
+end
+
+
 function kickoff_dependencies(dep_jobs::T, ::Type, ignore_target) where {T <: AbstractArray} 
     return ScheduledJob[execute(dep_job, ignore_target) for dep_job in dep_jobs]
 end
@@ -185,8 +203,12 @@ function execute(job::J, ignore_target=false) where {J <: AbstractJob}
 
     # We should actually schedule this with dagger
     thunk = Dagger.@spawn run_process(job, dependencies, target)
-    store(target, fetch(thunk))
-    data = Dagger.@spawn retrieve(target)
-    # And return it here --
+    
+    data = if target isa NoTarget
+        thunk
+    else
+        store(target, fetch(thunk))
+        Dagger.@spawn retrieve(target)
+    end
     return ScheduledJob(dependencies, target, data)
 end
