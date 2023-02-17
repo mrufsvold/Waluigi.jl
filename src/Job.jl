@@ -184,23 +184,16 @@ function kickoff_dependencies(::T, job_type::Type, ::Any) where {T}
 end
 
 function execute(job::J, ignore_target=false) where {J <: AbstractJob}
-    # TODO deps will be hard to find upstream if they're in a list like this
-    # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
-    # Create a name 
     dep_jobs = get_dependencies(job)
     dependencies = kickoff_dependencies(dep_jobs, J, ignore_target)
 
     # If the target is already complete, we can just return the previously calculated result
     target = get_target(job)
-    if !(target isa Nothing) && iscomplete(target)
-        # TODO this should also be scheduled
-        # And updated to whatever function I'm gonna use for target getting
+    if iscomplete(target) && !ignore_target
         data = Dagger.@spawn retrieve(target)
         return ScheduledJob(dependencies, target, data)
     end
 
-
-    # We should actually schedule this with dagger
     thunk = Dagger.@spawn run_process(job, dependencies, target)
     
     data = if target isa NoTarget
