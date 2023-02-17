@@ -1,4 +1,5 @@
-using Waluigi
+using TestEnv
+TestEnv.activate()
 using Test
 
 field_equal(v1, v2) = (v1==v2) isa Bool ? v1==v2 : false
