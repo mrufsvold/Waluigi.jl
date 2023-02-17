@@ -44,7 +44,7 @@ Waluigi.@Job begin
     dependencies = nothing
     target = 42
     process = nothing
-end#) |> dump
+end
 
 Waluigi.@Job begin
     name = CheckPointTester
@@ -60,6 +60,14 @@ Waluigi.@Job begin
     dependencies = nothing
     target = Main.ParquetDirTarget(parq_dir; read_kwargs = (use_mmap=false,))
     process = tbl
+end
+
+@macroexpand1 Waluigi.@Job begin
+    name = TypedParams
+    parameters = (a::Int, b::String)
+    dependencies = nothing
+    target = nothing
+    process = nothing
 end
 
 end # TestJobs Module

@@ -8,8 +8,8 @@ end
 ParquetDirTarget(path; write_kwargs=(), read_kwargs=()) = ParquetDirTarget(path, write_kwargs, read_kwargs)
 Waluigi.iscomplete(t::ParquetDirTarget) = isdir(t.path)
 function Waluigi.store(t::ParquetDirTarget, data)
-    isdir(t.path) && rm(test_parq_dir; force=true, recursive=true)
-    mkdir(test_parq_dir)
+    isdir(t.path) && rm(t.path; force=true, recursive=true)
+    mkdir(t.path)
 
     if Tables.istable(data)
         store_one(data, joinpath(t.path, "1.parq"), t.write_kwargs...)

@@ -97,3 +97,7 @@ end
     rm(test_parq_dir; force=true, recursive=true)
 end
 
+@testset "Typing Parameters" begin
+    @test TestJobs.TypedParams(1,"a").a == 1
+    @test_throws MethodError TestJobs.TypedParams(1,5)
+end
