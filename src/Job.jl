@@ -8,7 +8,7 @@ Base.@kwdef mutable struct ScheduledJob{T<:AbstractTarget}
     target::T
     promise::Dagger.EagerThunk
 end
-
+result_type(sj::ScheduledJob) = result_type(sj.target)
 Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
 
 get_dependencies(job) = nothing
@@ -17,7 +17,7 @@ run_process(job, dependencies, target) = nothing
 
 get_dependencies(r::ScheduledJob) = r.dependencies
 get_target(r::ScheduledJob) = r.target
-get_result(r::ScheduledJob) = fetch(r.promise)
+get_result(r::ScheduledJob)= fetch(r.promise)::(result_type(r))
 
 const AcceptableDependencyContainers = Union{
     AbstractArray{<:AbstractJob},

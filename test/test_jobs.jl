@@ -50,7 +50,7 @@ Waluigi.@Job begin
     name = CheckPointTester
     parameters = (a,)
     dependencies = nothing
-    target = Waluigi.BinFileTarget(joinpath(Main.test_files, "checkpoint_tester.bin"))
+    target = Waluigi.BinFileTarget{Int}(joinpath(Main.test_files, "checkpoint_tester.bin"))
     process = a
 end
 
@@ -68,6 +68,17 @@ Waluigi.@Job begin
     dependencies = nothing
     target = nothing
     process = nothing
+end
+
+Waluigi.@Job begin
+    name = UsingTypedParams
+    parameters = (a::Int, b::String)
+    dependencies = nothing
+    target = Waluigi.BinFileTarget{Int}(joinpath(Main.test_files, "typed_checkpoint.bin"))
+    process = begin
+        s = a + 100
+        return s
+    end
 end
 
 end # TestJobs Module

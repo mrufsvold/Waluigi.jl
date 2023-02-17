@@ -1,6 +1,6 @@
 using Parquet2
 using Tables
-struct ParquetDirTarget <: Waluigi.AbstractTarget
+struct ParquetDirTarget <: Waluigi.AbstractTarget{Parquet2.Dataset}
     path::String
     write_kwargs
     read_kwargs

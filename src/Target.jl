@@ -11,21 +11,22 @@ open(::Target) Called to access the target. Usually, this means returning the tm
     the process is completed.
 
 """
-abstract type AbstractTarget end
-
-struct NoTarget <: AbstractTarget end 
-Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget()
+abstract type AbstractTarget{T} end
+return_type(t::AbstractTarget{T}) where {T} = T
+struct NoTarget{T} <: AbstractTarget{T} end
+NoTarget() = NoTarget{Nothing}()
+Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget{Nothing}()
 iscomplete(::NoTarget) = false
 function store(::NoTarget, ::Any) end
 
 """BinFileTarget(path)
 A target that serializes the result of a Job and stores it in a .bin file at the designated path.
 """
-struct BinFileTarget <: AbstractTarget
+struct BinFileTarget{T} <: AbstractTarget{T}
     path::String
-    BinFileTarget(path) = begin
+    function BinFileTarget{T}(path) where {T}
         path = endswith(path, ".bin") ? path : path * ".bin"
-        return new(path)
+        return new{T}(path)
     end
 end
 iscomplete(t::BinFileTarget) = isfile(t.path)
@@ -34,9 +35,9 @@ function store(t::BinFileTarget, data)
         serialize(io, data)
     end
 end
-function retrieve(t::BinFileTarget)
+function retrieve(t::BinFileTarget{T}) where {T}
     open(t.path, "r") do io
-        deserialize(io)
+        deserialize(io)::T
     end
 end
 
