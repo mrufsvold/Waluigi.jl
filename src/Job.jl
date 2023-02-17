@@ -2,18 +2,27 @@
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
 
-get_dependencies() = nothing
-get_target() = nothing
-run_process(job, dependencies, target) = nothing
 
-Base.@kwdef mutable struct Result
-    dependencies
-    target
-    data
+Base.@kwdef mutable struct ScheduledJob
+    dependencies::Union{Vector{ScheduledJob}, Dict{Symbol, ScheduledJob}}
+    target::AbstractTarget
+    promise::Dagger.EagerThunk
 end
 
-get_dependencies(r::Result) = r.dependencies
+Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
 
+get_dependencies(job) = nothing
+get_target(job) = nothing
+run_process(job, dependencies, target) = nothing
+
+get_dependencies(r::ScheduledJob) = r.dependencies
+get_target(r::ScheduledJob) = r.target
+get_result(r::ScheduledJob) = fetch(r.promise)
+
+const AcceptableDependencyContainers = Union{
+    AbstractArray{<:AbstractJob},
+    AbstractDict{Symbol, <:AbstractJob},
+}
 
 """
     @Job(job_description)
@@ -129,34 +138,55 @@ function add_get_dep_return_type_protection(func_block)
             $func_block
         end
         if t isa Nothing
-            return []
-        elseif !(t isa Union{Base.Generator,AbstractArray})
+            return AbstractJob[]
+        elseif t isa AbstractJob
             return [t]
+        elseif t isa Waluigi.AcceptableDependencyContainers
+            return t
         end
-        return t
+        throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(typeof(t)) \
+which is not one of the accepted return types. It must return one of the following: \
+<: AbstractJob, AbstractArray{<:AbstractJob}, Dict{Symbol, <:AbstractJob}"""))
     end
 end
 
 
-function execute(job::AbstractJob, ignore_target=false)
-    dep_jobs = get_dependencies(job)
-    
+function kickoff_dependencies(dep_jobs::T, ::Type, ignore_target) where {T <: AbstractArray} 
+    return ScheduledJob[execute(dep_job, ignore_target) for dep_job in dep_jobs]
+end
+function kickoff_dependencies(dep_jobs::T, ::Type, ignore_target) where {T <: AbstractDict}
+    jobs = Dict{Symbol,ScheduledJob}(
+        name => execute(dep_job, ignore_target)
+        for (name, dep_job) in pairs(dep_jobs)
+    )
+    return jobs
+end
+function kickoff_dependencies(::T, job_type::Type, ::Any) where {T}
+    throw(ArgumentError("Job dependencies must be defined in an Array or a Dict. For $job_type, the depenencies field is returning a $T"))
+end
+
+function execute(job::J, ignore_target=false) where {J <: AbstractJob}
     # TODO deps will be hard to find upstream if they're in a list like this
     # It would be helpful to names in a NamedTuple or Dict. But it's tough to imagine how to 
     # Create a name 
-    dependencies = Vector(undef, length(dep_jobs))
-    for (i, dep_job) in enumerate(dep_jobs)
-        dependencies[i] = execute(dep_job, ignore_target)
-    end
-    dependencies
-
+    dep_jobs = get_dependencies(job)
+    dependencies = kickoff_dependencies(dep_jobs, J, ignore_target)
+    
+    # If the target is already complete, we can just return the previously calculated result
     target = get_target(job)
     if !(target isa Nothing) && iscomplete(target)
-        data = read(target)
-        return Result(dependencies, target, data)
+        # TODO this should also be scheduled
+        # And updated to whatever function I'm gonna use for target getting
+        data = Dagger.@spawn retrieve(target)
+        return ScheduledJob(dependencies, target, data)
     end
 
-    data = run_process(job, dependencies, target)
 
-    return Result(dependencies, target, data)
+    # We should actually schedule this with dagger
+    thunk = Dagger.@spawn run_process(job, dependencies, target)
+    store(target, fetch(thunk))
+    @show thunk
+    data = Dagger.@spawn retrieve(target)
+    # And return it here --
+    return ScheduledJob(dependencies, target, data)
 end

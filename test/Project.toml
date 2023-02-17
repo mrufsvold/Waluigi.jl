@@ -1,2 +1,4 @@
 [deps]
+Dagger = "d58978e5-989f-55fb-8d15-ea34adc7bf54"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

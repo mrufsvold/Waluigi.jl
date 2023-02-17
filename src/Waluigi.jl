@@ -1,8 +1,10 @@
 module Waluigi
 
-export @Job, AbstractJob, get_dependencies, get_target, run_process, execute
+using Dagger
+
+export @Job, AbstractJob, get_dependencies, get_target, get_result, run_process, execute
 include("FileSystemUtils.jl")
-include("Job.jl")
 include("Target.jl")
+include("Job.jl")
 
 end # module Waluigi
