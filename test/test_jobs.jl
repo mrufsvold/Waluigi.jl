@@ -42,7 +42,7 @@ Waluigi.@Job begin
     name = CheckPointTester
     parameters = (a,)
     dependencies = nothing
-    target = Waluigi.BinFileTarget(Main.test_files, "checkpoint_tester.bin")
+    target = Waluigi.BinFileTarget(joinpath(Main.test_files, "checkpoint_tester.bin"))
     process = a
 end
 

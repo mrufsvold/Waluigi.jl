@@ -1,4 +1,3 @@
-using Random
 using Serialization
 
 """
@@ -17,29 +16,25 @@ abstract type AbstractTarget end
 struct NoTarget <: AbstractTarget end 
 Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget()
 
-struct LocalPathTarget <: AbstractTarget
-    id::String
-    path::String
-end
-LocalPathTarget(p) = LocalPathTarget(randomstring(10), p)
 
+"""BinFileTarget(path)
+A target that serializes the result of a Job and stores it in a .bin file at the designated path.
+"""
 struct BinFileTarget <: AbstractTarget
-    id::String
-    dir::String
-    fn::String
+    path::String
+    BinFileTarget(path) = begin
+        path = endswith(path, ".bin") ? path : path * ".bin"
+        return new(path)
+    end
 end
-function BinFileTarget(dir::String, fn::String)
-    fn = endswith(fn, ".bin") ? fn : fn * ".bin"
-    return BinFileTarget(randstring(10), dir, fn)
-end
-iscomplete(t::BinFileTarget) = isfile(joinpath(t.dir, t.fn))
+iscomplete(t::BinFileTarget) = isfile(t.path)
 function store(t::BinFileTarget, data) 
-    open(joinpath(t.dir, t.fn), "w") do io
+    open(t.path, "w") do io
         serialize(io, data)
     end
 end
 function retrieve(t::BinFileTarget)
-    open(joinpath(t.dir, t.fn), "r") do io
+    open(t.path, "r") do io
         deserialize(io)
     end
 end

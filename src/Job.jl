@@ -36,7 +36,8 @@ MyNewJob = @Job begin
     parameters = (param1::String, param2::Int, param)
     
     # Dependencies list jobs that should be inputs to this job (Optional)
-    # They can be created programmatically using parameters
+    # They can be created programmatically using parameters, and must return an
+    # <:AbstractJob, AbstractArray{<:AbstractJob}, or AbstractDict{Symbol, <:AbstractJob}
     dependencies = [[SomeJob(i) for i in 1:param2]; AnotherJob("input")]
     
     # Target is an output location to cache the result. If the target exists, the job will
@@ -171,7 +172,7 @@ function execute(job::J, ignore_target=false) where {J <: AbstractJob}
     # Create a name 
     dep_jobs = get_dependencies(job)
     dependencies = kickoff_dependencies(dep_jobs, J, ignore_target)
-    
+
     # If the target is already complete, we can just return the previously calculated result
     target = get_target(job)
     if !(target isa Nothing) && iscomplete(target)
