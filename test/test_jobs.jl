@@ -39,6 +39,14 @@ Waluigi.@Job begin
 end
 
 Waluigi.@Job begin
+    name = BadTarget
+    parameters = nothing
+    dependencies = nothing
+    target = 42
+    process = nothing
+end#) |> dump
+
+Waluigi.@Job begin
     name = CheckPointTester
     parameters = (a,)
     dependencies = nothing

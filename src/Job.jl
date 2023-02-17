@@ -84,7 +84,7 @@ end
 
 
 function extract_job_features(job_description)
-    job_features = Dict{Symbol,Union{Symbol,Expr}}()
+    job_features = Dict{Symbol,Any}()
     for element in job_description.args
         if element isa LineNumberNode
             continue
@@ -163,7 +163,6 @@ function add_get_target_return_type_protection(func_block)
         elseif t isa Waluigi.AbstractTarget
             return t
         end
-        return t
         throw(ArgumentError("""The target definition definition in $(typeof(job)) returned a $(typeof(t)), \
 but target must return `nothing` or `<:AbstractTarget`"""))
     end

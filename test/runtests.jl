@@ -59,6 +59,7 @@ end
 
 @testset "Malformed Jobs" begin
     @test_throws ArgumentError Waluigi.execute(TestJobs.BadDeps())
+    @test_throws ArgumentError Waluigi.execute(TestJobs.BadTarget())
 end
 
 @testset "Checkpointing" begin
@@ -77,16 +78,16 @@ end
     @test 1 == second_checkpoint_res |> Waluigi.execute |> get_result
     rm(checkpoint_fp)
 
-    # Checkpoint with custom target
+    # Checkpoint with custom target, same strategy as above
     test_parq_dir = joinpath(test_files, "test_parq_dir")
     parq_file = joinpath(test_parq_dir, "1.parq")
     mkdir(test_parq_dir)
 
     df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
     use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
-    res = Waluigi.execute(use_custom_1) |> get_result 
-    @test df_1 == res |> DataFrame
-    isfile(parq_file)
+    @test df_1 == Waluigi.execute(use_custom_1) |> get_result |> DataFrame
+    @test isfile(parq_file)
+
     df_2 = DataFrame(e=[1,1,1])
     use_custom_2 = TestJobs.UsingCustomTarget(df_2, test_parq_dir)
     @test df_1 == Waluigi.execute(use_custom_1) |> get_result |> DataFrame
