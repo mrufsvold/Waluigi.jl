@@ -62,7 +62,7 @@ Waluigi.@Job begin
     process = tbl
 end
 
-@macroexpand1 Waluigi.@Job begin
+Waluigi.@Job begin
     name = TypedParams
     parameters = (a::Int, b::String)
     dependencies = nothing
