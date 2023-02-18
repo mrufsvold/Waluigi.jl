@@ -8,7 +8,7 @@ Base.@kwdef mutable struct ScheduledJob{T<:AbstractTarget}
     target::T
     promise::Dagger.EagerThunk
 end
-result_type(sj::ScheduledJob) = result_type(sj.target)
+return_type(sj::ScheduledJob) = return_type(sj.target)
 Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
 
 get_dependencies(job) = nothing
@@ -17,7 +17,7 @@ run_process(job, dependencies, target) = nothing
 
 get_dependencies(r::ScheduledJob) = r.dependencies
 get_target(r::ScheduledJob) = r.target
-get_result(r::ScheduledJob)= fetch(r.promise)::(result_type(r))
+get_result(r::ScheduledJob)= fetch(r.promise)::(return_type(r))
 
 const AcceptableDependencyContainers = Union{
     AbstractArray{<:AbstractJob},
@@ -60,19 +60,28 @@ macro Job(job_description)
     
     job_name = job_features[:name]
 
+    if job_name == Expr(:block, :nothing)
+        return :(throw(ArgumentError("Job definitions require a `name` field but none was provided.")))
+    end
+
     raw_parameters = job_features[:parameters]
     parameter_list = raw_parameters isa Symbol ? (raw_parameters,) : raw_parameters.args
     parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
 
+    
     dependency_func = add_get_dep_return_type_protection(job_features[:dependencies])
     target_func = add_get_target_return_type_protection(job_features[:target])
-
+    
     dependency_ex = unpack_input_function(:get_dependencies, job_name, parameter_names, dependency_func)
     target_ex = unpack_input_function(:get_target, job_name, parameter_names, target_func)
     process_ex = unpack_input_function(:run_process, job_name, parameter_names, job_features[:process], (:dependencies, :target))
-
+    
     struct_def = :(struct $job_name <: AbstractJob end)
     push!(struct_def.args[3].args, parameter_list...)
+
+    # TODO: check if there is already a struct defined that is a complete match (name, fields, types)
+    # if there is, then just emit the functions so since the user is probably just trying to 
+    # edit the implementation of a funciton
 
     return quote
         $struct_def
@@ -89,11 +98,13 @@ function extract_job_features(job_description)
         if element isa LineNumberNode
             continue
         end
-        @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
+        # TODO assert errors like this are difficult to test inside a macro
+        # Need to come up with a better solution for checking that all fields have an equals
+        # @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
         job_features[element.args[1]] = element.args[2]
     end
 
-    for feature in (:dependencies, :target, :process)
+    for feature in (:name, :dependencies, :target, :process)
         if !(feature in keys(job_features))
             job_features[feature] = Expr(:block, :nothing)
         end
@@ -106,21 +117,6 @@ function extract_job_features(job_description)
     return job_features
 end
 
-
-function make_anon_function_expr(f; args=(), kwargs=nothing)
-    sym_args = Any[Symbol(p) for p in args]
-    if !(kwargs isa Nothing)
-        pushfirst!(sym_args, Expr(:parameters, (Symbol(k) for k in kwargs)...))
-    end
-    return Expr(
-        Symbol("->"),
-        Expr(
-            :tuple,
-            sym_args...
-        ),
-        f
-    )
-end
 
 function unpack_input_function(function_name, job_name, parameter_names, function_body, additional_inputs=())
     quote
@@ -159,7 +155,8 @@ function add_get_target_return_type_protection(func_block)
             $func_block
         end
         if t isa Nothing
-            return Waluigi.NoTarget()
+            # TODO need to find a way to parameterize when no target is specified
+            return Waluigi.NoTarget{Any}()
         elseif t isa Waluigi.AbstractTarget
             return t
         end

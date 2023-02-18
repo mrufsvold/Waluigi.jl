@@ -38,14 +38,15 @@ end
 
 
 @testset "All nothing jobs description" begin
-    nothing_job = TestJobs.NothingJob()
-    @test get_dependencies(nothing_job) == []
-    @test get_target(nothing_job) isa Waluigi.NoTarget
-    @test run_process(nothing_job, [nothing], nothing) isa Nothing
-    @test fields_equal(
-        Waluigi.execute(nothing_job), Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), 
-        Dagger.spawn(() -> nothing))
-        )
+    for job in (TestJobs.NothingJob(), TestJobs.OopsAllOmited())
+        @test get_dependencies(job) == []
+        @test get_target(job) isa Waluigi.NoTarget
+        @test run_process(job, [nothing], nothing) isa Nothing
+        @test fields_equal(
+            Waluigi.execute(job), Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), 
+            Dagger.spawn(() -> nothing))
+            )
+    end
 end
 
 
@@ -60,6 +61,7 @@ end
 @testset "Malformed Jobs" begin
     @test_throws ArgumentError Waluigi.execute(TestJobs.BadDeps())
     @test_throws ArgumentError Waluigi.execute(TestJobs.BadTarget())
+    @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
 end
 
 @testset "Checkpointing" begin

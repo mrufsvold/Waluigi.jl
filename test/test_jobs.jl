@@ -1,7 +1,7 @@
 module TestJobs
 using Waluigi
 
-Waluigi.@Job begin
+@Job begin
     name = NothingJob
     parameters = nothing
     dependencies = nothing
@@ -9,7 +9,11 @@ Waluigi.@Job begin
     process = nothing
 end
 
-Waluigi.@Job begin
+@Job begin
+    name = OopsAllOmited
+end
+
+@Job begin
     name = DepJob
     parameters = (a,b)
     dependencies = nothing
@@ -19,7 +23,7 @@ Waluigi.@Job begin
     end
 end
 
-Waluigi.@Job begin
+@Job begin
     name = MainJob
     parameters = nothing
     dependencies = [DepJob(2,4)]
@@ -30,7 +34,7 @@ Waluigi.@Job begin
     end
 end
 
-Waluigi.@Job begin
+@Job begin
     name = BadDeps
     parameters = nothing
     dependencies = (a = DepJob(2,4),)
@@ -38,7 +42,7 @@ Waluigi.@Job begin
     process = nothing
 end
 
-Waluigi.@Job begin
+@Job begin
     name = BadTarget
     parameters = nothing
     dependencies = nothing
@@ -46,15 +50,15 @@ Waluigi.@Job begin
     process = nothing
 end
 
-Waluigi.@Job begin
+@Job begin
     name = CheckPointTester
     parameters = (a,)
     dependencies = nothing
-    target = Waluigi.BinFileTarget{Int}(joinpath(Main.test_files, "checkpoint_tester.bin"))
+    target = Waluigi.BinFileTarget{typeof(a)}(joinpath(Main.test_files, "checkpoint_tester.bin"))
     process = a
 end
 
-Waluigi.@Job begin
+@Job begin
     name = UsingCustomTarget
     parameters = (tbl, parq_dir)
     dependencies = nothing
@@ -62,7 +66,7 @@ Waluigi.@Job begin
     process = tbl
 end
 
-Waluigi.@Job begin
+@Job begin
     name = TypedParams
     parameters = (a::Int, b::String)
     dependencies = nothing
@@ -70,7 +74,7 @@ Waluigi.@Job begin
     process = nothing
 end
 
-Waluigi.@Job begin
+@Job begin
     name = UsingTypedParams
     parameters = (a::Int, b::String)
     dependencies = nothing

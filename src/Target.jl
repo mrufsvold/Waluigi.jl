@@ -14,10 +14,9 @@ open(::Target) Called to access the target. Usually, this means returning the tm
 abstract type AbstractTarget{T} end
 return_type(t::AbstractTarget{T}) where {T} = T
 struct NoTarget{T} <: AbstractTarget{T} end
-NoTarget() = NoTarget{Nothing}()
-Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget{Nothing}()
+NoTarget() = NoTarget{Any}()
+Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget{Any}()
 iscomplete(::NoTarget) = false
-function store(::NoTarget, ::Any) end
 
 """BinFileTarget(path)
 A target that serializes the result of a Job and stores it in a .bin file at the designated path.
