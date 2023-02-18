@@ -2,7 +2,7 @@
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
 
-
+# This is what an executed Job will return
 Base.@kwdef mutable struct ScheduledJob{T<:AbstractTarget}
     dependencies::Union{Vector{ScheduledJob}, Dict{Symbol, ScheduledJob}}
     target::T
@@ -11,14 +11,17 @@ end
 return_type(sj::ScheduledJob) = return_type(sj.target)
 Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
 
+# This is the interface for a Job. They dispatch on job type
 get_dependencies(job) = nothing
 get_target(job) = nothing
 run_process(job, dependencies, target) = nothing
 
+# Similar interface for ScheduledJob
 get_dependencies(r::ScheduledJob) = r.dependencies
 get_target(r::ScheduledJob) = r.target
 get_result(r::ScheduledJob)= fetch(r.promise)::(return_type(r))
 
+# This are the accepted versions of containers of jobs that the user can define for depenencies
 const AcceptableDependencyContainers = Union{
     AbstractArray{<:AbstractJob},
     AbstractDict{Symbol, <:AbstractJob},
@@ -56,6 +59,7 @@ end
 ```
 """
 macro Job(job_description)
+    # This returns a Dict of job parameters and their values
     job_features = extract_job_features(job_description)
     
     job_name = job_features[:name]
@@ -64,11 +68,15 @@ macro Job(job_description)
         return :(throw(ArgumentError("Job definitions require a `name` field but none was provided.")))
     end
 
+    # Cleaning the parameters passed in
     raw_parameters = job_features[:parameters]
+    # This is the list of parameters including type annotations if applicable
     parameter_list = raw_parameters isa Symbol ? (raw_parameters,) : raw_parameters.args
+    # This is just the names
     parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
 
-    
+    # get_dependencies need to return an `AcceptableDependencyContainers` and target needs to return an <:AbstractTarget
+    # these functions append some protections and raise errors if the function returns an upexpected type
     dependency_func = add_get_dep_return_type_protection(job_features[:dependencies])
     target_func = add_get_target_return_type_protection(job_features[:target])
     
@@ -135,16 +143,18 @@ function add_get_dep_return_type_protection(func_block)
         t = begin
             $func_block
         end
-        if t isa Nothing
-            return AbstractJob[]
+        corrected_deps = if t isa Nothing
+            AbstractJob[]
         elseif t isa AbstractJob
-            return [t]
+            typeof(t)[t]
         elseif t isa Waluigi.AcceptableDependencyContainers
-            return t
-        end
-        throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(typeof(t)) \
+            t
+        else
+            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(typeof(t)) \
 which is not one of the accepted return types. It must return one of the following: \
 <: AbstractJob, AbstractArray{<:AbstractJob}, Dict{Symbol, <:AbstractJob}"""))
+        end
+        return corrected_deps
     end
 end
 
@@ -154,35 +164,34 @@ function add_get_target_return_type_protection(func_block)
         t = begin
             $func_block
         end
-        if t isa Nothing
+        corrected_target = if t isa Nothing
             # TODO need to find a way to parameterize when no target is specified
-            return Waluigi.NoTarget{Any}()
+            Waluigi.NoTarget{Any}()
         elseif t isa Waluigi.AbstractTarget
-            return t
-        end
+            t
+        else
         throw(ArgumentError("""The target definition definition in $(typeof(job)) returned a $(typeof(t)), \
 but target must return `nothing` or `<:AbstractTarget`"""))
+        end
+        return corrected_target
     end
 end
 
 
-function kickoff_dependencies(dep_jobs::T, ::Type, ignore_target) where {T <: AbstractArray} 
+function kickoff_dependencies(dep_jobs::T, ignore_target) where {T <: AbstractArray} 
     return ScheduledJob[execute(dep_job, ignore_target) for dep_job in dep_jobs]
 end
-function kickoff_dependencies(dep_jobs::T, ::Type, ignore_target) where {T <: AbstractDict}
+function kickoff_dependencies(dep_jobs::T, ignore_target) where {T <: AbstractDict}
     jobs = Dict{Symbol,ScheduledJob}(
         name => execute(dep_job, ignore_target)
         for (name, dep_job) in pairs(dep_jobs)
     )
     return jobs
 end
-function kickoff_dependencies(::T, job_type::Type, ::Any) where {T}
-    throw(ArgumentError("Job dependencies must be defined in an Array or a Dict. For $job_type, the depenencies field is returning a $T"))
-end
 
-function execute(job::J, ignore_target=false) where {J <: AbstractJob}
+function execute(@nospecialize(job::J), ignore_target=false) where {J <: AbstractJob}
     dep_jobs = get_dependencies(job)
-    dependencies = kickoff_dependencies(dep_jobs, J, ignore_target)
+    dependencies = kickoff_dependencies(dep_jobs, ignore_target)
 
     # If the target is already complete, we can just return the previously calculated result
     target = get_target(job)

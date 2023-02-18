@@ -13,6 +13,7 @@ open(::Target) Called to access the target. Usually, this means returning the tm
 """
 abstract type AbstractTarget{T} end
 return_type(t::AbstractTarget{T}) where {T} = T
+
 struct NoTarget{T} <: AbstractTarget{T} end
 NoTarget() = NoTarget{Any}()
 Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget{Any}()

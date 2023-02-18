@@ -88,14 +88,13 @@ end
     isdir(test_parq_dir)
     df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
     use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
-    @test df_1 == Waluigi.execute(use_custom_1) |> get_result |> DataFrame
+    @test df_1 == (Waluigi.execute(use_custom_1) |> get_result |> DataFrame)
     @test isfile(parq_file)
 
     df_2 = DataFrame(e=[1,1,1])
     use_custom_2 = TestJobs.UsingCustomTarget(df_2, test_parq_dir)
-    use_custom_2 |> get_target 
-    @test df_1 == Waluigi.execute(use_custom_2) |> get_result |> DataFrame
-    @test df_2 == Waluigi.execute(use_custom_2, true) |> get_result |> DataFrame
+    @test df_1 == (Waluigi.execute(use_custom_2) |> get_result |> DataFrame)
+    @test df_2 == (Waluigi.execute(use_custom_2, true) |> get_result |> DataFrame)
     rm(test_parq_dir; force=true, recursive=true)
 end
 

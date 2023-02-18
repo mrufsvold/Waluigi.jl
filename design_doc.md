@@ -15,3 +15,22 @@ results of the depenencies, the target, and the data created by the job.
 We will lean on Dagger.jl for the backend infrastructure which schedules jobs, mantains the
 graph of dependencies, and provides visualizations of the processes. 
 
+# TODO
+* Investigate using Dagger Checkpoints 
+x = Dagger.delayed(sum;
+               options=Dagger.Sch.ThunkOptions(;
+                   checkpoint=(thunk,result)->begin
+                       open("checkpoint.bin", "w") do io
+                           serialize(io, collect(result))
+                       end
+                   end,
+                   restore=(thunk)->begin
+                                dump(thunk)
+                                   open("checkpoint.bin", "r") do io
+                           Dagger.tochunk(deserialize(io))
+                                           end
+                   end)
+               )([5,6])
+
+* Consider using get_dependencies to improve type inference on NoTarget{Any}
+* Docs for custom targets
