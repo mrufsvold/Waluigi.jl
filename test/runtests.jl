@@ -64,12 +64,13 @@ end
     @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
 end
 
-@testset "Checkpointing" begin
+# @testset "Checkpointing" begin
+    using ProfileView
     checkpoint_fp = joinpath(test_files, "checkpoint_tester.bin")
 
     # CheckPointTester just caches the value it's given and returns it.
     first_checkpoint_tester = TestJobs.CheckPointTester(1)
-    first_checkpoint_res = Waluigi.execute(first_checkpoint_tester)
+    ProfileView.@profview first_checkpoint_res = Waluigi.execute(first_checkpoint_tester)
 
     @test isfile(checkpoint_fp)
     @test get_result(first_checkpoint_res) == 1
@@ -87,7 +88,7 @@ end
     parq_file = joinpath(test_parq_dir, "1.parq")
     isdir(test_parq_dir)
     df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
-    use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
+    @profile use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
     @test df_1 == (Waluigi.execute(use_custom_1) |> get_result |> DataFrame)
     @test isfile(parq_file)
 

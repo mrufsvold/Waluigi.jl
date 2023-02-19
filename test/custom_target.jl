@@ -1,5 +1,7 @@
 using Parquet2
 using Tables
+
+
 struct ParquetDirTarget <: Waluigi.AbstractTarget{Parquet2.Dataset}
     path::String
     write_kwargs
@@ -18,6 +20,7 @@ function Waluigi.store(t::ParquetDirTarget, data)
     end
     return nothing
 end
+
 function store_one(data, path, kwargs...)
     Parquet2.writefile(
         path, data;
@@ -37,3 +40,5 @@ end
 function Waluigi.retrieve(t::ParquetDirTarget)
     return Parquet2.Dataset(t.path; t.read_kwargs...)
 end
+
+
