@@ -1,8 +1,7 @@
 # Waluigi.jl
 
 Waluigi is a pure-Julia implementation of Luigi. It aims to provide a simple interface for defining 
-`Job`s in a data pipeline and linking dependencies together. In the background, it schedules 
-jobs with Dagger.jl and ensures that dependencies are satisfied in the correct order.
+`Job`s in a data pipeline and linking dependencies together.
 
 # Getting Started
 You can get started with this quick example:
