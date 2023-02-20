@@ -23,7 +23,6 @@ field_equal(v1, v2) = (v1==v2) isa Bool ? v1==v2 : false
 field_equal(::Nothing, ::Nothing) = true
 field_equal(::Missing, ::Missing) = true
 field_equal(a1::AbstractArray, a2::AbstractArray) = length(a1) == length(a2) && field_equal.(a1,a2) |> all
-field_equal(p1::Dagger.EagerThunk, p2::Dagger.EagerThunk) = field_equal(fetch(p1), fetch(p2))
 function fields_equal(o1, o2)
     for name in fieldnames(typeof(o1))
         prop1 = getproperty(o1, name)
@@ -43,9 +42,8 @@ end
         @test get_target(job) isa Waluigi.NoTarget
         @test run_process(job, [nothing], nothing) isa Nothing
         @test fields_equal(
-            Waluigi.execute(job), Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), 
-            Dagger.spawn(() -> nothing))
-            )
+            Waluigi.execute(job),
+            Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), nothing))
     end
 end
 
@@ -64,13 +62,12 @@ end
     @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
 end
 
-# @testset "Checkpointing" begin
-    using ProfileView
+@testset "Checkpointing" begin
     checkpoint_fp = joinpath(test_files, "checkpoint_tester.bin")
 
     # CheckPointTester just caches the value it's given and returns it.
     first_checkpoint_tester = TestJobs.CheckPointTester(1)
-    ProfileView.@profview first_checkpoint_res = Waluigi.execute(first_checkpoint_tester)
+    first_checkpoint_res = Waluigi.execute(first_checkpoint_tester)
 
     @test isfile(checkpoint_fp)
     @test get_result(first_checkpoint_res) == 1
@@ -88,7 +85,7 @@ end
     parq_file = joinpath(test_parq_dir, "1.parq")
     isdir(test_parq_dir)
     df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
-    @profile use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
+    use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
     @test df_1 == (Waluigi.execute(use_custom_1) |> get_result |> DataFrame)
     @test isfile(parq_file)
 

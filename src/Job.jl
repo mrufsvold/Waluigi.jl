@@ -1,12 +1,25 @@
+struct ThunkLike 
+    data
+end
+
 # This is the internal Job structure
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
 
 # This is what an executed Job will return
-Base.@kwdef mutable struct ScheduledJob{T<:AbstractTarget}
+mutable struct ScheduledJob{T<:AbstractTarget, D}
     dependencies::Union{Vector{ScheduledJob}, Dict{Symbol, ScheduledJob}}
     target::T
-    promise::Dagger.EagerThunk
+    data::D
+    function ScheduledJob(deps, target, data)
+        returned_value_type = typeof(data)
+        expected_type = return_type(target)
+        if !(returned_value_type <: expected_type)
+            throw(ArgumentError("Type of data must be a subtype of the target return type"))
+
+        end
+        return new{typeof(target), returned_value_type}(deps,target,data)
+    end
 end
 return_type(sj::ScheduledJob) = return_type(sj.target)
 Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
@@ -19,11 +32,11 @@ run_process(job, dependencies, target) = nothing
 # Similar interface for ScheduledJob
 get_dependencies(r::ScheduledJob) = r.dependencies
 get_target(r::ScheduledJob) = r.target
-get_result(r::ScheduledJob)= fetch(r.promise)::(return_type(r))
+get_result(r::ScheduledJob)= r.data
 
 # This are the accepted versions of containers of jobs that the user can define for depenencies
 const AcceptableDependencyContainers = Union{
-    AbstractArray{<:AbstractJob},
+    Vector{<:AbstractJob},
     AbstractDict{Symbol, <:AbstractJob},
 }
 
@@ -106,9 +119,6 @@ function extract_job_features(job_description)
         if element isa LineNumberNode
             continue
         end
-        # TODO assert errors like this are difficult to test inside a macro
-        # Need to come up with a better solution for checking that all fields have an equals
-        # @assert element.head == Symbol("=") "No `=` operator found in job description for $element"
         job_features[element.args[1]] = element.args[2]
     end
 
@@ -127,7 +137,7 @@ end
 
 
 function unpack_input_function(function_name, job_name, parameter_names, function_body, additional_inputs=())
-    quote
+    return quote
         function Waluigi.$function_name(job::$job_name, $(additional_inputs...))
             let $((:($name = job.$name) for name in parameter_names)...)
                 $function_body
@@ -196,17 +206,17 @@ function execute(@nospecialize(job::J), ignore_target=false) where {J <: Abstrac
     # If the target is already complete, we can just return the previously calculated result
     target = get_target(job)
     if iscomplete(target) && !ignore_target
-        data = Dagger.@spawn retrieve(target)
+        data = retrieve(target)
         return ScheduledJob(dependencies, target, data)
     end
 
-    thunk = Dagger.@spawn run_process(job, dependencies, target)
+    actual_result = run_process(job, dependencies, target)
     
     data = if target isa NoTarget
-        thunk
+        actual_result
     else
-        store(target, fetch(thunk))
-        Dagger.@spawn retrieve(target)
+        store(target, actual_result)
+        retrieve(target)
     end
     return ScheduledJob(dependencies, target, data)
 end
