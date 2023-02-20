@@ -7,7 +7,6 @@ function __init__()
 end
 __init__()
 
-using Dagger
 using Test
 using DataFrames
 

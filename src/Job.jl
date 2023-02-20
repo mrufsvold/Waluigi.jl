@@ -1,7 +1,3 @@
-struct ThunkLike 
-    data
-end
-
 # This is the internal Job structure
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
@@ -22,7 +18,7 @@ mutable struct ScheduledJob{T<:AbstractTarget, D}
     end
 end
 return_type(sj::ScheduledJob) = return_type(sj.target)
-Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), Dagger.spawn(() -> nothing))
+Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), nothing)
 
 # This is the interface for a Job. They dispatch on job type
 get_dependencies(job) = nothing
