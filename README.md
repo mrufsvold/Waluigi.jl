@@ -6,7 +6,7 @@ Waluigi is a pure-Julia implementation of Luigi. It aims to provide a simple int
 # Getting Started
 You can get started with this quick example:
 
-'''
+```julia
 using Waluigi
 
 module JobDefinitions
