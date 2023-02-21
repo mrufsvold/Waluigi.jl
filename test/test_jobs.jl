@@ -1,6 +1,6 @@
 module TestJobs
-using Waluigi
 
+using Waluigi
 @Job begin
     name = NothingJob
     parameters = nothing
@@ -83,6 +83,16 @@ end
         s = a + 100
         return s
     end
+end
+
+@Job begin
+    name = CycleDepA
+    dependencies = CycleDepB
+end
+
+@Job begin
+    name = CycleDepB
+    dependencies = CycleDepA
 end
 
 end # TestJobs Module

@@ -1,4 +1,5 @@
 [deps]
+Dagger = "d58978e5-989f-55fb-8d15-ea34adc7bf54"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Parquet2 = "98572fba-bba0-415d-956f-fa77e587d26d"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
