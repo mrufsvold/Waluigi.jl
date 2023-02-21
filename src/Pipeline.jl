@@ -10,6 +10,7 @@ function run_pipeline(head_job)
     # job status is a dict id => bool, true means ready to run 
     (jobs, dependancy_relations, ready_jobs) = get_dependency_details(head_job)
 
+    check_for_circular_dependencies(jobs, dependancy_relations)
 
     results = Dict{UInt64, Dagger.EagerThunk}()
 
@@ -82,7 +83,6 @@ end
 get_dependencies_list(deps::AbstractDict) = collect(values(deps))
 get_dependencies_list(deps) = deps
 
-using Graphs
 function check_for_circular_dependencies(jobs, dependancy_relations)
     job_id_to_idx = Dict(
         job_id => i

@@ -85,4 +85,14 @@ end
     end
 end
 
+@Job begin
+    name = CycleDepA
+    dependencies = CycleDepB
+end
+
+@Job begin
+    name = CycleDepB
+    dependencies = CycleDepA
+end
+
 end # TestJobs Module
