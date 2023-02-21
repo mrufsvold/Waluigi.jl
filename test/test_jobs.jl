@@ -1,6 +1,6 @@
 module TestJobs
-using Waluigi
 
+using Waluigi
 @Job begin
     name = NothingJob
     parameters = nothing

@@ -1,4 +1,7 @@
+# using Pkg
+# Pkg.activate()
 # using TestEnv
+# Pkg.activate(".")
 # TestEnv.activate("Waluigi")
 
 using Scratch
@@ -9,7 +12,7 @@ __init__()
 
 using Test
 using DataFrames
-
+using Dagger
 using Waluigi
 
 # Putting all the structs for tester jobs in a module makes it easier to iterate
@@ -41,23 +44,23 @@ end
         @test get_target(job) isa Waluigi.NoTarget
         @test run_process(job, [nothing], nothing) isa Nothing
         @test fields_equal(
-            Waluigi.execute(job),
-            Waluigi.ScheduledJob(Waluigi.ScheduledJob[], Waluigi.NoTarget(), nothing))
+            get_result(Waluigi.run_pipeline(job)),
+            Waluigi.ScheduledJob(zero(UInt64), Waluigi.NoTarget(), nothing))
     end
 end
 
 
 @testset "Basic dependencies" begin
     @test begin
-        result = Waluigi.execute(TestJobs.MainJob())
+        result = Waluigi.run_pipeline(TestJobs.MainJob())
         Waluigi.get_result(result) == 7
     end
 end
 
 
 @testset "Malformed Jobs" begin
-    @test_throws ArgumentError Waluigi.execute(TestJobs.BadDeps())
-    @test_throws ArgumentError Waluigi.execute(TestJobs.BadTarget())
+    @test_throws ArgumentError get_result(Waluigi.run_pipeline(TestJobs.BadDeps()))
+    @test_throws Dagger.ThunkFailedException get_result(Waluigi.run_pipeline(TestJobs.BadTarget()))
     @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
 end
 
@@ -66,32 +69,31 @@ end
 
     # CheckPointTester just caches the value it's given and returns it.
     first_checkpoint_tester = TestJobs.CheckPointTester(1)
-    first_checkpoint_res = Waluigi.execute(first_checkpoint_tester)
+    first_checkpoint_res = get_result(Waluigi.run_pipeline(first_checkpoint_tester))
 
     @test isfile(checkpoint_fp)
-    @test get_result(first_checkpoint_res) == 1
+    @test  first_checkpoint_res == 1
 
-    # But since the path to the target is the same for all instances, this new version of CheckPointTester will
-    # still return `1` since it's just going to grab the cached result regardless of the input
+    # # But since the path to the target is the same for all instances, this new version of CheckPointTester will
+    # # still return `1` since it's just going to grab the cached result regardless of the input
     second_checkpoint_res = TestJobs.CheckPointTester(2)
-    @test 1 == second_checkpoint_res |> Waluigi.execute |> get_result
-    @test 2 == Waluigi.execute(second_checkpoint_res, true) |> get_result
+    @test 1 == second_checkpoint_res |> Waluigi.run_pipeline |> get_result
 
     rm(checkpoint_fp)
 
-    # Checkpoint with custom target, same strategy as above
+    # # Checkpoint with custom target, same strategy as above
     test_parq_dir = joinpath(test_files, "test_parq_dir")
     parq_file = joinpath(test_parq_dir, "1.parq")
-    isdir(test_parq_dir)
+    rm(test_parq_dir; force=true, recursive=true)
+    @test !isdir(test_parq_dir)
     df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
     use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
-    @test df_1 == (Waluigi.execute(use_custom_1) |> get_result |> DataFrame)
+    @test df_1 == (Waluigi.run_pipeline(use_custom_1) |> get_result |> DataFrame)
     @test isfile(parq_file)
 
     df_2 = DataFrame(e=[1,1,1])
     use_custom_2 = TestJobs.UsingCustomTarget(df_2, test_parq_dir)
-    @test df_1 == (Waluigi.execute(use_custom_2) |> get_result |> DataFrame)
-    @test df_2 == (Waluigi.execute(use_custom_2, true) |> get_result |> DataFrame)
+    @test df_1 == (Waluigi.run_pipeline(use_custom_2) |> get_result |> DataFrame)
     rm(test_parq_dir; force=true, recursive=true)
 end
 

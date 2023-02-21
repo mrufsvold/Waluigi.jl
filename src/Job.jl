@@ -2,23 +2,25 @@
 # TODO save the file and line number for the job definition so we can give clear debugging information
 abstract type AbstractJob end
 
-# This is what an executed Job will return
-mutable struct ScheduledJob{T<:AbstractTarget, D}
-    dependencies::Union{Vector{ScheduledJob}, Dict{Symbol, ScheduledJob}}
+mutable struct ScheduledJob{T<:AbstractTarget}
+    job_id::UInt64
     target::T
-    data::D
-    function ScheduledJob(deps, target, data)
+    data
+    function ScheduledJob(job_id, target, data)
         returned_value_type = typeof(data)
         expected_type = return_type(target)
         if !(returned_value_type <: expected_type)
             throw(ArgumentError("Type of data must be a subtype of the target return type"))
-
+    
         end
-        return new{typeof(target), returned_value_type}(deps,target,data)
+        return new{typeof(target)}(job_id, target,data)
     end
 end
+
+
+# This is what an executed Job will return
 return_type(sj::ScheduledJob) = return_type(sj.target)
-Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob([], NoTarget(), nothing)
+Base.convert(::Type{ScheduledJob}, ::Nothing) = ScheduledJob(zero(UInt64), NoTarget(), nothing)
 
 # This is the interface for a Job. They dispatch on job type
 get_dependencies(job) = nothing
@@ -28,7 +30,8 @@ run_process(job, dependencies, target) = nothing
 # Similar interface for ScheduledJob
 get_dependencies(r::ScheduledJob) = r.dependencies
 get_target(r::ScheduledJob) = r.target
-get_result(r::ScheduledJob)= r.data
+get_result(t::Dagger.EagerThunk) = get_result(fetch(t))
+get_result(j::ScheduledJob{T}) where {T} = j.data::return_type(T)
 
 # This are the accepted versions of containers of jobs that the user can define for depenencies
 const AcceptableDependencyContainers = Union{
@@ -183,36 +186,3 @@ but target must return `nothing` or `<:AbstractTarget`"""))
     end
 end
 
-
-function kickoff_dependencies(dep_jobs::T, ignore_target) where {T <: AbstractArray} 
-    return ScheduledJob[execute(dep_job, ignore_target) for dep_job in dep_jobs]
-end
-function kickoff_dependencies(dep_jobs::T, ignore_target) where {T <: AbstractDict}
-    jobs = Dict{Symbol,ScheduledJob}(
-        name => execute(dep_job, ignore_target)
-        for (name, dep_job) in pairs(dep_jobs)
-    )
-    return jobs
-end
-
-function execute(@nospecialize(job::J), ignore_target=false) where {J <: AbstractJob}
-    dep_jobs = get_dependencies(job)
-    dependencies = kickoff_dependencies(dep_jobs, ignore_target)
-
-    # If the target is already complete, we can just return the previously calculated result
-    target = get_target(job)
-    if iscomplete(target) && !ignore_target
-        data = retrieve(target)
-        return ScheduledJob(dependencies, target, data)
-    end
-
-    actual_result = run_process(job, dependencies, target)
-    
-    data = if target isa NoTarget
-        actual_result
-    else
-        store(target, actual_result)
-        retrieve(target)
-    end
-    return ScheduledJob(dependencies, target, data)
-end
