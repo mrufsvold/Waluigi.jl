@@ -10,8 +10,6 @@ function run_pipeline(head_job)
     # job status is a dict id => bool, true means ready to run 
     (jobs, dependency_relations, initial_ready_jobs) = get_dependency_details(head_job)
 
-    check_for_circular_dependencies(jobs, dependency_relations)
-
     results = Dict{UInt64, Union{Nothing, Dagger.EagerThunk}}(
         id => nothing
         for id in initial_ready_jobs
@@ -47,7 +45,6 @@ function run_pipeline(head_job)
         end
 
         job_id = findfirst(p -> p[2] === nothing, (p for p in pairs(results)))
-        
         if job_id === nothing
             completed_all_jobs = true
         end
@@ -57,13 +54,13 @@ end
 
 
 function get_dependency_details(head_job)
-    println("get_dependency_details is changed")
     # The look up for the actual job objects
     jobs = Dict{UInt64, AbstractJob}()
     # Tracking if a job is ready to run
     ready_jobs = Set{UInt64}()
     dep_relations = Dict{Tuple{UInt64,UInt64,Bool}, Int}()
     traverse_dependencies!(head_job, jobs, dep_relations, ready_jobs)
+    dep_relations = Set(keys(dep_relations))
     return (jobs = jobs, dependency_relations = dep_relations, ready_jobs = ready_jobs)
 end
 

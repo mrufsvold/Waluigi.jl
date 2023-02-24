@@ -30,7 +30,7 @@ Waluigi.@Job begin
     dependencies = [DepJob(2,4)]
     target = nothing
     process = begin
-        sum_dep = get_result(dependencies[1])
+        sum_dep = Waluigi.get_result(dependencies[1])
         return sum_dep + 1
     end
 end
@@ -99,6 +99,13 @@ end
 Waluigi.@Job begin
     name = ReturnDepTypeNotInstance
     dependencies = DepJob
+end
+
+struct TesterType end
+Waluigi.@Job begin
+    name = IUseTesterType
+    parameters = (a::TesterType,)
+    process = true
 end
 
 end # TestJobs Module

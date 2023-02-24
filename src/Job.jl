@@ -96,7 +96,7 @@ macro Job(job_description)
     target_ex = unpack_input_function(:get_target, job_name, parameter_names, target_func)
     process_ex = unpack_input_function(:run_process, job_name, parameter_names, job_features[:process], (:dependencies, :target))
     
-    struct_def = :(struct $job_name <: $(esc(Waluigi.AbstractJob)) end)
+    struct_def = :(struct $job_name <: Waluigi.AbstractJob end)
     push!(struct_def.args[3].args, parameter_list...)
 
     # TODO: check if there is already a struct defined that is a complete match (name, fields, types)
@@ -104,7 +104,7 @@ macro Job(job_description)
     # edit the implementation of a funciton
 
     return quote
-        $struct_def
+        $(esc(struct_def))
         $(esc(dependency_ex))
         $(esc(target_ex))
         $(esc(process_ex))
