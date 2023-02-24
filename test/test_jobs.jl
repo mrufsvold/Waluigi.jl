@@ -1,7 +1,8 @@
 module TestJobs
 
-using Waluigi
-@Job begin
+import ..Waluigi
+
+Waluigi.@Job begin
     name = NothingJob
     parameters = nothing
     dependencies = nothing
@@ -9,11 +10,11 @@ using Waluigi
     process = nothing
 end
 
-@Job begin
+Waluigi.@Job begin
     name = OopsAllOmited
 end
 
-@Job begin
+Waluigi.@Job begin
     name = DepJob
     parameters = (a,b)
     dependencies = nothing
@@ -23,18 +24,18 @@ end
     end
 end
 
-@Job begin
+Waluigi.@Job begin
     name = MainJob
     parameters = nothing
     dependencies = [DepJob(2,4)]
     target = nothing
     process = begin
-        sum_dep = get_result(dependencies[1])
+        sum_dep = Waluigi.get_result(dependencies[1])
         return sum_dep + 1
     end
 end
 
-@Job begin
+Waluigi.@Job begin
     name = BadDeps
     parameters = nothing
     dependencies = (a = DepJob(2,4),)
@@ -42,7 +43,7 @@ end
     process = nothing
 end
 
-@Job begin
+Waluigi.@Job begin
     name = BadTarget
     parameters = nothing
     dependencies = nothing
@@ -50,7 +51,7 @@ end
     process = nothing
 end
 
-@Job begin
+Waluigi.@Job begin
     name = CheckPointTester
     parameters = (a,)
     dependencies = nothing
@@ -58,7 +59,7 @@ end
     process = a
 end
 
-@Job begin
+Waluigi.@Job begin
     name = UsingCustomTarget
     parameters = (tbl, parq_dir)
     dependencies = nothing
@@ -66,7 +67,7 @@ end
     process = tbl
 end
 
-@Job begin
+Waluigi.@Job begin
     name = TypedParams
     parameters = (a::Int, b::String)
     dependencies = nothing
@@ -74,7 +75,7 @@ end
     process = nothing
 end
 
-@Job begin
+Waluigi.@Job begin
     name = UsingTypedParams
     parameters = (a::Int, b::String)
     dependencies = nothing
@@ -85,14 +86,26 @@ end
     end
 end
 
-@Job begin
+Waluigi.@Job begin
     name = CycleDepA
-    dependencies = CycleDepB
+    dependencies = CycleDepB()
 end
 
-@Job begin
+Waluigi.@Job begin
     name = CycleDepB
-    dependencies = CycleDepA
+    dependencies = CycleDepA()
+end
+
+Waluigi.@Job begin
+    name = ReturnDepTypeNotInstance
+    dependencies = DepJob
+end
+
+struct TesterType end
+Waluigi.@Job begin
+    name = IUseTesterType
+    parameters = (a::TesterType,)
+    process = true
 end
 
 end # TestJobs Module

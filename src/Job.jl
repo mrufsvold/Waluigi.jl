@@ -96,7 +96,7 @@ macro Job(job_description)
     target_ex = unpack_input_function(:get_target, job_name, parameter_names, target_func)
     process_ex = unpack_input_function(:run_process, job_name, parameter_names, job_features[:process], (:dependencies, :target))
     
-    struct_def = :(struct $job_name <: $(esc(Waluigi.AbstractJob)) end)
+    struct_def = :(struct $job_name <: Waluigi.AbstractJob end)
     push!(struct_def.args[3].args, parameter_list...)
 
     # TODO: check if there is already a struct defined that is a complete match (name, fields, types)
@@ -104,7 +104,7 @@ macro Job(job_description)
     # edit the implementation of a funciton
 
     return quote
-        $struct_def
+        $(esc(struct_def))
         $(esc(dependency_ex))
         $(esc(target_ex))
         $(esc(process_ex))
@@ -153,13 +153,16 @@ function add_get_dep_return_type_protection(func_block)
             $func_block
         end
         corrected_deps = if t isa Nothing
-            AbstractJob[]
-        elseif t isa AbstractJob
+            Waluigi.AbstractJob[]
+        elseif t isa Waluigi.AbstractJob
             typeof(t)[t]
         elseif t isa Waluigi.AcceptableDependencyContainers
             t
+        elseif t isa Type && t <: Waluigi.AbstractJob
+            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a AbstractJob type,\
+but dependencies must be an instance of a job. Try calling the job like `$(t)(args...)`"""))
         else
-            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(typeof(t)) \
+            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(t) \
 which is not one of the accepted return types. It must return one of the following: \
 <: AbstractJob, AbstractArray{<:AbstractJob}, Dict{Symbol, <:AbstractJob}"""))
         end

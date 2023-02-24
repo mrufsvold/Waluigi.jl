@@ -57,12 +57,11 @@ end
     end
 end
 
-
 @testset "Malformed Jobs" begin
     @test_throws ArgumentError get_result(Waluigi.run_pipeline(TestJobs.BadDeps()))
     @test_throws Dagger.ThunkFailedException get_result(Waluigi.run_pipeline(TestJobs.BadTarget()))
     @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
-    @test_throws ArgumentError Waluigi.run_pipeline(TestJobs.CycleDepA())
+    @test_throws InvalidStateException Waluigi.run_pipeline(TestJobs.CycleDepA())
 end
 
 @testset "Checkpointing" begin
@@ -75,14 +74,14 @@ end
     @test isfile(checkpoint_fp)
     @test  first_checkpoint_res == 1
 
-    # # But since the path to the target is the same for all instances, this new version of CheckPointTester will
-    # # still return `1` since it's just going to grab the cached result regardless of the input
+    # But since the path to the target is the same for all instances, this new version of CheckPointTester will
+    # still return `1` since it's just going to grab the cached result regardless of the input
     second_checkpoint_res = TestJobs.CheckPointTester(2)
     @test 1 == second_checkpoint_res |> Waluigi.run_pipeline |> get_result
 
     rm(checkpoint_fp)
 
-    # # Checkpoint with custom target, same strategy as above
+    # Checkpoint with custom target, same strategy as above
     test_parq_dir = joinpath(test_files, "test_parq_dir")
     parq_file = joinpath(test_parq_dir, "1.parq")
     rm(test_parq_dir; force=true, recursive=true)
@@ -101,4 +100,11 @@ end
 @testset "Typing Parameters" begin
     @test TestJobs.TypedParams(1,"a").a == 1
     @test_throws MethodError TestJobs.TypedParams(1,5)
+end
+
+@testset "Use a custom type in a function" begin
+    @test begin
+        i_use_tester_type = TestJobs.IUseTesterType(TestJobs.TesterType())
+        Waluigi.run_pipeline(i_use_tester_type) |> get_result
+    end
 end
