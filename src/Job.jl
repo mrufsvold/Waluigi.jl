@@ -153,13 +153,16 @@ function add_get_dep_return_type_protection(func_block)
             $func_block
         end
         corrected_deps = if t isa Nothing
-            AbstractJob[]
-        elseif t isa AbstractJob
+            Waluigi.AbstractJob[]
+        elseif t isa Waluigi.AbstractJob
             typeof(t)[t]
         elseif t isa Waluigi.AcceptableDependencyContainers
             t
+        elseif t isa Type && t <: Waluigi.AbstractJob
+            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a AbstractJob type,\
+but dependencies must be an instance of a job. Try calling the job like `$(t)(args...)`"""))
         else
-            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(typeof(t)) \
+            throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a $(t) \
 which is not one of the accepted return types. It must return one of the following: \
 <: AbstractJob, AbstractArray{<:AbstractJob}, Dict{Symbol, <:AbstractJob}"""))
         end
