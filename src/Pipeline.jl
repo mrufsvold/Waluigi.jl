@@ -4,12 +4,13 @@
 Given an instantiated Job, satisfied all dependencies recursively and return the result of 
 the final job. 
 """
-function run_pipeline(head_job)
+function run_pipeline(head_job, ignore_target=false)
     # Jobs is a dict id => AbstractJob
     # dep_rel is a set{Tuple{job id, dep id, satisfied}
     # job status is a dict id => bool, true means ready to run 
+    @info "Initiating the pipeline"
     (jobs, dependency_relations, initial_ready_jobs) = get_dependency_details(head_job)
-
+    @info "Collected $(length(jobs)) jobs to complete. "
     results = Dict{UInt64, Union{Nothing, Dagger.EagerThunk}}(
         id => nothing
         for id in initial_ready_jobs
@@ -22,8 +23,9 @@ function run_pipeline(head_job)
             for dep_pair in dependency_relations 
             if dep_pair[1] == job_id
         ]
-
-        results[job_id] = Dagger.@spawn execute(job_id, jobs[job_id], job_deps...)
+        
+        @debug "Spawning $(jobs[job_id])"
+        results[job_id] = Dagger.@spawn execute(job_id, jobs[job_id], ignore_target, job_deps...)
         
         # Find upstream jobs and check if completing this job makes them ready for execution
         upstream_jobs = dependency_relations |>
@@ -65,9 +67,10 @@ function get_dependency_details(head_job)
 end
 
 function traverse_dependencies!(job, jobs, dep_relations, ready_jobs, depth = 1)
+    @debug "Maximum debug depth is 100. Currently at depth $depth"
     job_id = hash(job)
     if depth > 100
-        return job_id
+        error("Reached maximum depth. It's possible that there is a cycle in the dependencies but the parameters are different each time.")
     end
     # We need to get the dependencies as a vector (get values of dicts)
     dep_container = get_dependencies(job)
@@ -83,16 +86,17 @@ function traverse_dependencies!(job, jobs, dep_relations, ready_jobs, depth = 1)
 
     # Go get grandchild dependency information
     for dep in dep_list
-        dep_id = traverse_dependencies!(dep, jobs, dep_relations, ready_jobs, depth + 1)
+        dep_id = hash(dep)
         dependency = (job_id, dep_id, false)
         relation_occurances = get(dep_relations, dependency, 0) + 1
-        dep_relations[(job_id, dep_id, false)] = relation_occurances
         if relation_occurances > 25
             check_for_circular_dependencies(jobs, keys(dep_relations))
         end
+        dep_relations[(job_id, dep_id, false)] = relation_occurances
+        traverse_dependencies!(dep, jobs, dep_relations, ready_jobs, depth + 1)
     end
 
-    return job_id
+    return nothing
 end
 
 get_dependencies_list(deps::AbstractDict{Symbol, AbstractJob}) = collect(values(deps))
@@ -140,13 +144,16 @@ function check_for_circular_dependencies(jobs, dependency_relations)
 
 end
 
+
 id_to_name(hash_id) = Symbol("__$hash_id")
 
 
-function execute(job_id::UInt64, job::AbstractJob, dependency_results...)
+function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_results...)
+    @debug "Running spawned execution for job ID $job_id. Details: $job"
     target = get_target(job)
     
-    if iscomplete(target) 
+    if iscomplete(target) && !ignore_target
+        @debug "$job_id was already complete. Retrieving the target"
         data = retrieve(target)
         return ScheduledJob(job_id, target, data)
     end
@@ -154,13 +161,15 @@ function execute(job_id::UInt64, job::AbstractJob, dependency_results...)
     original_deps = get_dependencies(job)
     dependencies = replace_dep_job_with_result(original_deps, dependency_results)
     actual_result = run_process(job, dependencies, target)
-    
+    @debug "Ran dep, target, and process funcs against $job_id. Return type is $(typeof(actual_result))"
     data = if target isa NoTarget
         actual_result
     else
+        @debug "Storing result for $job_id"
         store(target, actual_result)
         retrieve(target)
     end
+    @debug "$job_id is complete."
     return ScheduledJob(job_id, target, data)
 end
 
