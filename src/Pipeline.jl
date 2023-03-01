@@ -152,7 +152,7 @@ function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_res
     @info "Running spawned execution for job ID $job_id. Details: $job"
     target = get_target(job)
     
-    if iscomplete(target) 
+    if iscomplete(target) && !ignore_target
         @info "$job_id was already complete. Retrieving the target"
         data = retrieve(target)
         return ScheduledJob(job_id, target, data)
@@ -162,7 +162,7 @@ function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_res
     dependencies = replace_dep_job_with_result(original_deps, dependency_results)
     actual_result = run_process(job, dependencies, target)
     @info "Ran dep, target, and process funcs against $job_id. Return type is $(typeof(actual_result))"
-    data = if !ignore_target ||target isa NoTarget
+    data = if target isa NoTarget
         actual_result
     else
         @debug "Storing result for $job_id"
