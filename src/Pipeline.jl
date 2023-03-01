@@ -4,7 +4,7 @@
 Given an instantiated Job, satisfied all dependencies recursively and return the result of 
 the final job. 
 """
-function run_pipeline(head_job)
+function run_pipeline(head_job, ignore_target=false)
     # Jobs is a dict id => AbstractJob
     # dep_rel is a set{Tuple{job id, dep id, satisfied}
     # job status is a dict id => bool, true means ready to run 
@@ -25,7 +25,7 @@ function run_pipeline(head_job)
         ]
         
         @debug "Spawning $(jobs[job_id])"
-        results[job_id] = Dagger.@spawn execute(job_id, jobs[job_id], job_deps...)
+        results[job_id] = Dagger.@spawn execute(job_id, jobs[job_id], ignore_target, job_deps...)
         
         # Find upstream jobs and check if completing this job makes them ready for execution
         upstream_jobs = dependency_relations |>
@@ -148,7 +148,7 @@ end
 id_to_name(hash_id) = Symbol("__$hash_id")
 
 
-function execute(job_id::UInt64, job::AbstractJob, dependency_results...)
+function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_results...)
     @info "Running spawned execution for job ID $job_id. Details: $job"
     target = get_target(job)
     
@@ -162,7 +162,7 @@ function execute(job_id::UInt64, job::AbstractJob, dependency_results...)
     dependencies = replace_dep_job_with_result(original_deps, dependency_results)
     actual_result = run_process(job, dependencies, target)
     @info "Ran dep, target, and process funcs against $job_id. Return type is $(typeof(actual_result))"
-    data = if target isa NoTarget
+    data = if !ignore_target ||target isa NoTarget
         actual_result
     else
         @debug "Storing result for $job_id"
