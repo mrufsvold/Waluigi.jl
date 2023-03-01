@@ -113,12 +113,17 @@ end
 
 
 function extract_job_features(job_description)
+
     job_features = Dict{Symbol,Any}()
     for element in job_description.args
         if element isa LineNumberNode
             continue
         end
-        job_features[element.args[1]] = element.args[2]
+        feature_name = element.args[1]
+        if !(feature_name in (:name, :dependencies, :target, :process, :parameters))
+            error("Got feature name $feature_name. Expected one of :name, :dependencies, :target, :process, :parameters.")
+        end
+        job_features[feature_name] = element.args[2]
     end
 
     for feature in (:name, :dependencies, :target, :process)

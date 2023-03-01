@@ -60,7 +60,7 @@ end
 @testset "Malformed Jobs" begin
     @test_throws ArgumentError get_result(Waluigi.run_pipeline(TestJobs.BadDeps()))
     @test_throws Dagger.ThunkFailedException get_result(Waluigi.run_pipeline(TestJobs.BadTarget()))
-    @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
+    @test_throws ArgumentError @Job begin parameters = nothing; process = 5 end
     @test_throws InvalidStateException Waluigi.run_pipeline(TestJobs.CycleDepA())
 end
 
