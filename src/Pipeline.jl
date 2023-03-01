@@ -149,11 +149,11 @@ id_to_name(hash_id) = Symbol("__$hash_id")
 
 
 function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_results...)
-    @info "Running spawned execution for job ID $job_id. Details: $job"
+    @debug "Running spawned execution for job ID $job_id. Details: $job"
     target = get_target(job)
     
     if iscomplete(target) && !ignore_target
-        @info "$job_id was already complete. Retrieving the target"
+        @debug "$job_id was already complete. Retrieving the target"
         data = retrieve(target)
         return ScheduledJob(job_id, target, data)
     end
@@ -161,7 +161,7 @@ function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_res
     original_deps = get_dependencies(job)
     dependencies = replace_dep_job_with_result(original_deps, dependency_results)
     actual_result = run_process(job, dependencies, target)
-    @info "Ran dep, target, and process funcs against $job_id. Return type is $(typeof(actual_result))"
+    @debug "Ran dep, target, and process funcs against $job_id. Return type is $(typeof(actual_result))"
     data = if target isa NoTarget
         actual_result
     else
@@ -169,7 +169,7 @@ function execute(job_id::UInt64, job::AbstractJob, ignore_target, dependency_res
         store(target, actual_result)
         retrieve(target)
     end
-    @info "$job_id is complete."
+    @debug "$job_id is complete."
     return ScheduledJob(job_id, target, data)
 end
 
