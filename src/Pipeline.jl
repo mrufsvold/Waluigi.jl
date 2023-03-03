@@ -4,7 +4,10 @@
 Given an instantiated Job, satisfied all dependencies recursively and return the result of 
 the final job. 
 """
-function run_pipeline(head_job)
+function run_pipeline(head_job; visualizer=false)
+    if visualizer
+        start_viz()
+    end
     # Jobs is a dict id => AbstractJob
     # dep_rel is a set{Tuple{job id, dep id, satisfied}
     # job status is a dict id => bool, true means ready to run 
@@ -22,8 +25,8 @@ function run_pipeline(head_job)
             for dep_pair in dependency_relations 
             if dep_pair[1] == job_id
         ]
-
-        results[job_id] = Dagger.@spawn execute(job_id, jobs[job_id], job_deps...)
+        
+        results[job_id] = Dagger.@spawn (jobs[job_id])(job_id, job_deps...)
         
         # Find upstream jobs and check if completing this job makes them ready for execution
         upstream_jobs = dependency_relations |>
@@ -143,7 +146,7 @@ end
 id_to_name(hash_id) = Symbol("__$hash_id")
 
 
-function execute(job_id::UInt64, job::AbstractJob, dependency_results...)
+function (job::AbstractJob)(job_id::UInt64, dependency_results...)
     target = get_target(job)
     
     if iscomplete(target) 
