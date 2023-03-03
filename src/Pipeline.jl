@@ -6,6 +6,7 @@ the final job.
 """
 function run_pipeline(head_job, ignore_target=false; visualizer=false)
     if visualizer
+        @info "Creating visualizer at http://localhost:8080/"
         start_viz()
     end
     # Jobs is a dict id => AbstractJob
