@@ -1,8 +1,5 @@
-# using Pkg
-# Pkg.activate()
-# using TestEnv
-# Pkg.activate(".")
-# TestEnv.activate("Waluigi")
+using Logging
+global_logger(ConsoleLogger(stderr, Logging.Error))
 
 using Scratch
 function __init__()
@@ -60,7 +57,7 @@ end
 @testset "Malformed Jobs" begin
     @test_throws ArgumentError get_result(Waluigi.run_pipeline(TestJobs.BadDeps()))
     @test_throws Dagger.ThunkFailedException get_result(Waluigi.run_pipeline(TestJobs.BadTarget()))
-    @test_throws ArgumentError @Job begin paramters = nothing; process = 5 end
+    @test_throws ArgumentError @Job begin parameters = nothing; process = 5 end
     @test_throws InvalidStateException Waluigi.run_pipeline(TestJobs.CycleDepA())
 end
 
@@ -78,6 +75,7 @@ end
     # still return `1` since it's just going to grab the cached result regardless of the input
     second_checkpoint_res = TestJobs.CheckPointTester(2)
     @test 1 == second_checkpoint_res |> Waluigi.run_pipeline |> get_result
+    @test 2 == Waluigi.run_pipeline(second_checkpoint_res, true) |> get_result
 
     rm(checkpoint_fp)
 
