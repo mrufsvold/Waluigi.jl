@@ -59,8 +59,45 @@ Here, all we need is the result, so we call `get_result`.
 Of course, Hello world is the cannonical trivial example, but with these building blocks, you
 can define complex dependencies and parameterize abstracted processes to reduce code reuse.
 
+# Storing Results in a Target
 
 Any step in the pipeline can be saved to a `Target`. A target can be a file on disk, a SQL
 table, or anything else that can store and return data. Just like 'Job's, targets can be 
 defined by a user by implementing a small set of interface functions.
 
+The required interface for an AbstractTarget is:
+
+```julia
+
+# Use T if you want to parameterize your target's return type. Otherwise, replace
+# T with a specific type. This helps with type inference between Jobs, so you should use a 
+# type whenever possible
+struct MyTarget{T} <: Waluigi.AbstracTarget{T}
+    # add fields here
+end
+
+# iscompleted returns a boolean indicating whether the process should be skipped because the 
+# target is completed.
+function Waluigi.iscomplete(t::MyTarget)
+    true
+end
+
+# store accepts the target of a job and the data returend by `process` and stores it in the target
+function Waluigi.store(t::MyTarget, data)
+    # logic
+end
+
+# Given a completed target, returns the retrieved data
+function Waluigi.retrieve(t::MyTarget)
+    # get data
+    return data
+end
+
+```
+
+The current implementation of the pipeline always stores the results of the job and the runs
+retrieve and only passes on the retrieved data. This prevents a situation where the store and
+retrieve functions are not perfect inverses of each other. This does result in cases where unnecessary
+computation is required. In the future, there may be a new AbstractTarget type that will tell the
+pipeline to only store and then return the actual result of process if the user is taking responsibility
+for ensuring that the retrieved data is consistent with the the result data. 
