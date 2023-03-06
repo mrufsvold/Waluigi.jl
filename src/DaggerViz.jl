@@ -17,10 +17,6 @@ function start_viz()
     ml[:esat] = TimespanLogging.Events.EventSaturation()
     ml[:psat] = Dagger.Events.ProcessorSaturation()
 
-    # (Optional) Enable profile flamegraph generation with ProfileSVG
-    ml[:profile] = DaggerWebDash.ProfileMetrics()
-    ctx.profile = true
-
     # Create a LogWindow; necessary for real-time event updates
     lw = TimespanLogging.Events.LogWindow(20*10^9, :core)
     ml.aggregators[:logwindow] = lw
