@@ -34,10 +34,11 @@ get_result(t::Dagger.EagerThunk) = get_result(fetch(t))
 get_result(j::ScheduledJob{T}) where {T} = j.data::return_type(T)
 
 # This are the accepted versions of containers of jobs that the user can define for depenencies
-const AcceptableDependencyContainers = Union{
+const AcceptableDependencyContainer = Union{
     Vector{<:AbstractJob},
     AbstractDict{Symbol, <:AbstractJob},
 }
+Base.convert(::Type{AcceptableDependencyContainer}, j::J) where {J <: AbstractJob} = J[j]
 
 """
     @Job(job_description)
@@ -87,7 +88,7 @@ macro Job(job_description)
     # This is just the names
     parameter_names = [arg isa Symbol ? arg : arg.args[1] for arg in parameter_list]
 
-    # get_dependencies need to return an `AcceptableDependencyContainers` and target needs to return an <:AbstractTarget
+    # get_dependencies need to return an `AcceptableDependencyContainer` and target needs to return an <:AbstractTarget
     # these functions append some protections and raise errors if the function returns an upexpected type
     dependency_func = add_get_dep_return_type_protection(job_features[:dependencies])
     target_func = add_get_target_return_type_protection(job_features[:target])
@@ -161,7 +162,7 @@ function add_get_dep_return_type_protection(func_block)
             Waluigi.AbstractJob[]
         elseif t isa Waluigi.AbstractJob
             typeof(t)[t]
-        elseif t isa Waluigi.AcceptableDependencyContainers
+        elseif t isa Waluigi.AcceptableDependencyContainer
             t
         elseif t isa Type && t <: Waluigi.AbstractJob
             throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a AbstractJob type,\
@@ -194,3 +195,14 @@ but target must return `nothing` or `<:AbstractTarget`"""))
     end
 end
 
+
+Base.@kwdef struct Job <: AbstractJob
+    parameters::Union{Tuple, NamedTuple} = ()
+    dependencies::AcceptableDependencyContainer = AbstractJob[]
+    target::AbstractTarget = NoTarget()
+    process::Function = () -> nothing
+end
+
+get_dependencies(j::Job) = j.dependencies
+get_target(j::Job) = j.target
+run_process(job::Job, dependencies, target) = job.process(job.parameters..., dependencies, target)
