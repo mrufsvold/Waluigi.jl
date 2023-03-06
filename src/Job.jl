@@ -195,7 +195,19 @@ but target must return `nothing` or `<:AbstractTarget`"""))
     end
 end
 
+"""
+    Job(parameters::Union{Tuple, NamedTuple}, dependencies::AcceptableDependencyContainer, target::AbstractTarget, process::Function)
+    
+    Constructs a general type Job that can be run by the pipeline. Warning: Creating a Job without the macro does not 
+    afford some of the type stability guarantees of generated Job types at this time. Using `@Job` is preferred at this time.
 
+Args:
+    parameters::Union{Tuple, NamedTuple} : Parameters to be passed to the process function. Default `()`
+    dependencies::AcceptableDependencyContainer : A container of dependencies to run and pass to the process function. Default `AbstractJob[]`
+    target::AbstractTarget : A target to cache the result of the process function. Default `NoTarget()`
+    process::Function : A function that accepts an argument for each value in the parameters, one for dependencies, and one for target, in that order. 
+        Default `(parameters..., dependencies, target) -> nothing`
+"""
 Base.@kwdef struct Job <: AbstractJob
     parameters::Union{Tuple, NamedTuple} = ()
     dependencies::AcceptableDependencyContainer = AbstractJob[]
