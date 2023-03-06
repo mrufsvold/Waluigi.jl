@@ -1,4 +1,5 @@
 using Dagger, DaggerWebDash, TimespanLogging
+import DaggerWebDash: GanttPlot, LinePlot, GraphPlot, ProfileViewer
 
 function start_viz()
     ctx = Dagger.Sch.eager_context()
@@ -9,7 +10,12 @@ function start_viz()
     ml[:core] = TimespanLogging.Events.CoreMetrics()
     ml[:id] = TimespanLogging.Events.IDMetrics()
     ml[:timeline] = TimespanLogging.Events.TimelineMetrics()
-    # ...
+    ml[:wsat] = Dagger.Events.WorkerSaturation()
+    ml[:loadavg] = TimespanLogging.Events.CPULoadAverages()
+    ml[:bytes] = Dagger.Events.BytesAllocd()
+    ml[:mem] = TimespanLogging.Events.MemoryFree()
+    ml[:esat] = TimespanLogging.Events.EventSaturation()
+    ml[:psat] = Dagger.Events.ProcessorSaturation()
 
     # (Optional) Enable profile flamegraph generation with ProfileSVG
     ml[:profile] = DaggerWebDash.ProfileMetrics()
