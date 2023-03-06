@@ -8,7 +8,7 @@ struct ParquetDirTarget <: Waluigi.AbstractTarget{Parquet2.Dataset}
     read_kwargs
 end
 ParquetDirTarget(path; write_kwargs=(), read_kwargs=()) = ParquetDirTarget(path, write_kwargs, read_kwargs)
-Waluigi.iscomplete(t::ParquetDirTarget) = isdir(t.path)
+Waluigi.is_complete(t::ParquetDirTarget) = isdir(t.path)
 function Waluigi.store(t::ParquetDirTarget, data)
     isdir(t.path) && rm(t.path; force=true, recursive=true)
     mkdir(t.path)

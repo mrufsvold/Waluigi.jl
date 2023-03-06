@@ -1,3 +1,4 @@
+using Logging
 global_logger(ConsoleLogger(stderr, Logging.Error))
 
 using Scratch

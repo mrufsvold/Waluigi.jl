@@ -76,9 +76,9 @@ struct MyTarget{T} <: Waluigi.AbstracTarget{T}
     # add fields here
 end
 
-# iscompleted returns a boolean indicating whether the process should be skipped because the 
+# is_completed returns a boolean indicating whether the process should be skipped because the 
 # target is completed.
-function Waluigi.iscomplete(t::MyTarget)
+function Waluigi.is_complete(t::MyTarget)
     true
 end
 

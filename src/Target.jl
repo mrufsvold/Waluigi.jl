@@ -18,7 +18,7 @@ return_type(::Type{<:AbstractTarget{T}}) where {T} = T
 struct NoTarget{T} <: AbstractTarget{T} end
 NoTarget() = NoTarget{Any}()
 Base.convert(::Type{AbstractTarget}, ::Nothing) = NoTarget{Any}()
-iscomplete(::NoTarget) = false
+is_complete(::NoTarget) = false
 
 """BinFileTarget(path)
 A target that serializes the result of a Job and stores it in a .bin file at the designated path.
@@ -30,7 +30,7 @@ struct BinFileTarget{T} <: AbstractTarget{T}
         return new{T}(path)
     end
 end
-iscomplete(t::BinFileTarget) = isfile(t.path)
+is_complete(t::BinFileTarget) = isfile(t.path)
 function store(t::BinFileTarget, data) 
     open(t.path, "w") do io
         serialize(io, data)
