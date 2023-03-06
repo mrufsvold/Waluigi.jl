@@ -80,19 +80,15 @@ end
     rm(checkpoint_fp)
 
     # Checkpoint with custom target, same strategy as above
-    test_parq_dir = joinpath(test_files, "test_parq_dir")
-    parq_file = joinpath(test_parq_dir, "1.parq")
-    rm(test_parq_dir; force=true, recursive=true)
-    @test !isdir(test_parq_dir)
-    df_1 = DataFrame(a=[1,2,3], b=["a","b","c"])
-    use_custom_1 = TestJobs.UsingCustomTarget(df_1, test_parq_dir)
-    @test df_1 == (Waluigi.run_pipeline(use_custom_1) |> get_result |> DataFrame)
-    @test isfile(parq_file)
-
-    df_2 = DataFrame(e=[1,1,1])
-    use_custom_2 = TestJobs.UsingCustomTarget(df_2, test_parq_dir)
-    @test df_1 == (Waluigi.run_pipeline(use_custom_2) |> get_result |> DataFrame)
-    rm(test_parq_dir; force=true, recursive=true)
+    test_text_dir = joinpath(test_files, "test_text_dir")
+    text_file = joinpath(test_text_dir, "1.txt")
+    rm(test_text_dir; force=true, recursive=true)
+    @test !isdir(test_text_dir)
+    waluigi_quote = "Good Choice!"
+    use_custom_1 = TestJobs.UsingCustomTarget("Good Choice!", test_text_dir)
+    @test waluigi_quote == Waluigi.run_pipeline(use_custom_1) |> get_result
+    @test isfile(text_file)
+    rm(test_text_dir; force=true, recursive=true)
 end
 
 @testset "Typing Parameters" begin

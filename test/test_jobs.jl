@@ -61,10 +61,10 @@ end
 
 Waluigi.@Job begin
     name = UsingCustomTarget
-    parameters = (tbl, parq_dir)
+    parameters = (str, text_dir)
     dependencies = nothing
-    target = Main.ParquetDirTarget(parq_dir; read_kwargs = (use_mmap=false,))
-    process = tbl
+    target = Main.TextDirTarget(text_dir)
+    process = str
 end
 
 Waluigi.@Job begin
