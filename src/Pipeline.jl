@@ -21,6 +21,14 @@ function run_pipeline(@nospecialize(head_job), ignore_target=false; visualizer=f
 end
 
 
+"""
+(job::AbstractJob)(job_id::UInt64, ignore_target, dependency_results...)
+Execute the process for a given Job.
+    - Check if Target is complete, restore if possible
+    - Construct dependency container, replacing Job instances with ScheduledJob results
+    - Run the user defined process
+    - Store/retrieve target if applicable
+"""
 function (@nospecialize(job::AbstractJob))(job_id::UInt64, ignore_target, @nospecialize(dependency_results...))
     @debug "Running spawned execution for job ID $job_id. Details: $job"
     target = get_target(job)
@@ -46,6 +54,8 @@ function (@nospecialize(job::AbstractJob))(job_id::UInt64, ignore_target, @nospe
     return ScheduledJob(job_id, target, data)
 end
 
+# The user gives us a vector or dict of Jobs, keeping the same structure, replace the Jobs with
+# ScheduledJob result objects
 function replace_dep_job_with_result(dep_jobs::AbstractArray, dep_results)
     return ScheduledJob[
         dep_results[findfirst(res -> res.job_id == hash(job), dep_results) ]

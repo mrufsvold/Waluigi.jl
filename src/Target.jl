@@ -1,15 +1,17 @@
 using Serialization
 
 """
-A target is a result side effect of a process; the things we're trying to make the a pipeline.
+A target is a result side effect of a process, the things we're trying to make with the pipeline.
 
 The interface for a target has the following functions:
 
-is_complete(::Target) Returns a bool for if the target has been created
-complete(::Target) Called to clean up the target (i.e. move from tmp_dir to final)
-open(::Target) Called to access the target. Usually, this means returning the tmp field until
-    the process is completed.
+Waluigi.is_complete(<:AbstractTarget) Returns a bool for if the target has been created
+Waluigi.store(<:AbstractTarget, data) Store the result of a Job to the target
+Waluigi.retrieve(<:AbstractTarget) Reconstitute the data that was stored in a target
 
+Targets are a parametric type. The type parameter refers to the return type of `retrieve`. 
+This allows Waluigi to infer the type of the final result of a job before passing it on to the
+next job. 
 """
 abstract type AbstractTarget{T} end
 return_type(::AbstractTarget{T}) where {T} = T

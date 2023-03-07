@@ -106,3 +106,24 @@ end
         Waluigi.run_pipeline(i_use_tester_type) |> get_result
     end
 end
+
+@testset "Non Macro Job" begin
+    job1 = Waluigi.Job(
+        parameters = (1, 2),
+        process = (a, b, args...) -> a - b
+    )
+
+    @test begin 
+        -1 == (Waluigi.run_pipeline(job1) |> get_result)
+    end
+
+    @test begin 
+        job2 = Waluigi.Job(
+            parameters = (a=1, b = 2),
+            dependencies = job1,
+            process = (a, b, dependencies, target) -> a + b + Waluigi.get_result(dependencies[1])
+        )
+        2 == (Waluigi.run_pipeline(job2) |> get_result)
+    end
+
+end
