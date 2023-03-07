@@ -1,7 +1,12 @@
-# This is the internal Job structure
-# TODO save the file and line number for the job definition so we can give clear debugging information
+"""A Job describes the parameters, dependencies, target, and process for handling a task in 
+a pipeline. A new Job type can be constructed with the @Job macro and will provide better type
+inference and performance. Alternatively, you can use the generic Job type to create a job too."""
 abstract type AbstractJob end
 
+
+"""ScheduledJob represents a job that has been instantiated. This is the type which is passed ignore_target
+the user defined process scope in the dependencies container. Calling 'get_result' on a ScheduledJob returns
+the result data from the Jobs' process."""
 mutable struct ScheduledJob{T<:AbstractTarget}
     job_id::UInt64
     target::T
@@ -112,27 +117,34 @@ macro Job(job_description)
     end
 end
 
+"""
+extract_job_features(job_description)::Dict{Symbol, Any}
+Pull out the attributes of the user's job definition (:name, :dependencies, :target, :process, :parameters).
+Validate that all provided attributes match an expected attribute.
+Fill missing with `Expr(:block, :nothing)` or in the case of `parameters` fill with `()`
 
+"""
 function extract_job_features(job_description)
-
     job_features = Dict{Symbol,Any}()
     for element in job_description.args
         if element isa LineNumberNode
             continue
         end
         feature_name = element.args[1]
+
+        # validate feature name
         if !(feature_name in (:name, :dependencies, :target, :process, :parameters))
             error("Got feature name $feature_name. Expected one of :name, :dependencies, :target, :process, :parameters.")
         end
         job_features[feature_name] = element.args[2]
     end
 
+    # fill missing
     for feature in (:name, :dependencies, :target, :process)
         if !(feature in keys(job_features))
             job_features[feature] = Expr(:block, :nothing)
         end
     end
-
     if !(:parameters in keys(job_features)) || job_features[:parameters] == :nothing
         job_features[:parameters] = :(())
     end
@@ -140,7 +152,19 @@ function extract_job_features(job_description)
     return job_features
 end
 
+"""
+unpack_input_function(function_name, job_name, parameter_names, function_body, additional_inputs=())
 
+Create a new function in the Waluigi scope expression that accepts a job and additional inputs and then unpacks the fields
+of the job into local variables.
+
+Args:
+    - function_name::Symbol - Name of the new function 
+    - job_name::Symbol - The name of the job (eventually the type of the job)
+    - parameter_names::Iterable{Symbol} - A list of parameters that will match the fields of the job struct
+    - function_body::Expr - The expression that will actually execute in the function
+    - additional_inputs::Iterable{Symbol} - any additional arguments the function should accept
+"""
 function unpack_input_function(function_name, job_name, parameter_names, function_body, additional_inputs=())
     return quote
         function Waluigi.$function_name(job::$job_name, $(additional_inputs...))
@@ -152,12 +176,14 @@ function unpack_input_function(function_name, job_name, parameter_names, functio
 end
 
 
-
+"""`add_get_dep_return_type_protection` appends some checks on the return type of a `get_dependencies` call to ensure the
+user returned a correct type"""
 function add_get_dep_return_type_protection(func_block)
     return quote
         t = begin
             $func_block
         end
+        # Todo: this should be wrapped in a seperate function so it can be applied to the Generic Job too
         corrected_deps = if t isa Nothing
             Waluigi.AbstractJob[]
         elseif t isa Waluigi.AbstractJob
@@ -165,6 +191,8 @@ function add_get_dep_return_type_protection(func_block)
         elseif t isa Waluigi.AcceptableDependencyContainer
             t
         elseif t isa Type && t <: Waluigi.AbstractJob
+            # Todo: These errors should be extracted to a separate function to provide a barrier
+            # so creating these strings doesn't mess with performance
             throw(ArgumentError("""The dependencies definition in $(typeof(job)) returned a AbstractJob type,\
 but dependencies must be an instance of a job. Try calling the job like `$(t)(args...)`"""))
         else
@@ -176,7 +204,8 @@ which is not one of the accepted return types. It must return one of the followi
     end
 end
 
-
+"""`add_get_target_return_type_protection` appends some checks on the return type of a `get_target` call to ensure the
+user returned a correct type"""
 function add_get_target_return_type_protection(func_block)
     return quote
         t = begin
